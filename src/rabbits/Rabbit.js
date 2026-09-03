@@ -11,6 +11,7 @@ import { HopGait } from './HopGait.js';
 export const ST = {
   GRAZE: 'GRAZE', ALERT: 'ALERT', FLEE: 'FLEE',
   EVADE: 'EVADE', CAUGHT: 'CAUGHT', CIRCLE: 'CIRCLE',
+  LURED: 'LURED',
 };
 
 let NEXT_ID = 1;
@@ -131,6 +132,36 @@ export class Rabbit {
   // ── decision making ──
   _think(dt, player, s) {
     const t = this.type;
+
+    // A dropped carrot outranks everything except being caught. Even a fleeing
+    // rabbit will break off for it — that is what makes it worth 5c.
+    // The Black Rabbit is not interested in carrots.
+    if (this.lure && !t.circler) {
+      this.state = ST.LURED;
+      const to = _v.subVectors(this.lure, this.obj.position).setY(0);
+      const dist = to.length();
+
+      if (dist > 0.75) {
+        this.desiredYaw = Math.atan2(-to.x, -to.z);
+        // Bolts for it at full speed, easing down over the last couple of
+        // metres. The carrot only lives 5s, so dawdling means never arriving.
+        this.targetSpeed = dist > 2.5 ? t.panicSpeed : t.speed * 0.5;
+        this.headYawTarget = 0;
+      } else {
+        // arrived: stands still and eats. This is the catch window.
+        this.targetSpeed = 0;
+        this.desiredYaw = this.yaw;
+        this.headYawTarget = 0;
+      }
+      return;
+    }
+
+    // carrot gone — settle rather than snapping straight back to panic
+    if (this.state === ST.LURED) {
+      this.state = ST.GRAZE;
+      this.stateTime = 0;
+      this.idleTimer = 0.4 + Math.random();
+    }
 
     // The Black Rabbit does not flee. It circles and stares. §13
     if (t.circler) {
@@ -339,8 +370,10 @@ export class Rabbit {
     } else {
       p.neck.rotation.y *= 1 - Math.min(1, 5 * dt);
     }
-    // alert rabbits sit up and scan
-    const rear = this.state === ST.ALERT ? 0.30 : 0;
+    // alert rabbits sit up and scan; lured ones put their head down to eat
+    const rear = this.state === ST.ALERT ? 0.30
+               : (this.state === ST.LURED && this.speed < 0.5) ? -0.38
+               : 0;
     p.neck.rotation.x += (rear - p.neck.rotation.x) * Math.min(1, 8 * dt);
 
     // nose twitch — 8-14 Hz micro motion, only when not bounding
@@ -419,7 +452,7 @@ export class Rabbit {
   }
 
   // Loud scare — a whiffed lunge sends everything nearby bolting. §4.1
-  scare(origin, radius, player) {
+  scare(origin, radius, player, { silent = false } = {}) {
     if (!this.alive || this.state === ST.CAUGHT) return;
     if (this.type.circler) return;
     if (this.obj.position.distanceTo(origin) > radius) return;
@@ -428,7 +461,7 @@ export class Rabbit {
     this.fleeFuel = this.type.fleeStamina;
     this._awayFrom(origin, (Math.random() - 0.5) * 0.6);
     this.desiredYaw = this._pendingYaw;
-    this.voice?.squeal(this);
+    if (!silent) this.voice?.squeal(this);
   }
 
   dispose(scene) {

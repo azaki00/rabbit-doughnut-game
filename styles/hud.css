@@ -133,6 +133,14 @@ body.playing #hud { opacity: 1; }
 }
 .coinIcon { color: var(--butter); margin-right: 5px; }
 
+#carrotRow {
+  margin-top: 5px; font-size: 15px; font-weight: bold;
+  text-shadow: 0 2px 6px rgba(0,0,0,.8);
+  opacity: 0; transition: opacity .3s;
+}
+#carrotRow.show { opacity: 1; }
+.carrotIcon { margin-right: 6px; }
+
 /* inventory — the glove slot is visually separated and permanent */
 #bottomright { position: absolute; right: 26px; bottom: 24px; }
 #slots { display: flex; gap: 6px; align-items: center; }
@@ -252,5 +260,17 @@ kbd {
   transition: transform .1s, box-shadow .1s;
 }
 #startBtn:active { transform: translateY(4px); box-shadow: 0 2px 0 #a8384c; }
+
+#settingsBtn {
+  display: block; margin: 14px auto 0;
+  pointer-events: auto; cursor: pointer;
+  padding: 9px 30px;
+  font: inherit; font-size: 11px; font-weight: bold; letter-spacing: .2em;
+  color: #f0e6da;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 24px;
+}
+#settingsBtn:hover { background: rgba(255,255,255,.14); }
 
 .hint { margin-top: 26px; font-size: 12px; opacity: .4; font-style: italic; }

@@ -41,12 +41,13 @@ export class Controller {
 
     this.speed2D = 0;
     this.noiseRadius = 11;
+    this.invertY = false;
   }
 
   look(dx, dy, sens) {
     if (this.frozen > 0) sens *= 0.35;   // stumbling makes aiming hard
     this.yaw   -= dx * sens;
-    this.pitch -= dy * sens;
+    this.pitch -= dy * sens * (this.invertY ? -1 : 1);
     const lim = Math.PI / 2 - 0.02;
     this.pitch = Math.max(-lim, Math.min(lim, this.pitch));
   }

@@ -29,6 +29,7 @@ export class HeadBob {
 
     this.onFootfall = null;
     this._lastFoot = 0;
+    this.scale = 1;              // settings: head bob intensity
   }
 
   land(impactSpeed) {
@@ -60,8 +61,8 @@ export class HeadBob {
     }
 
     const f = this._freq;
-    this.offsetY = Math.sin(this.phase * 2.0 * f) * this._ampY * ratio;
-    this.offsetX = Math.sin(this.phase * 1.0 * f) * this._ampX * ratio;
+    this.offsetY = Math.sin(this.phase * 2.0 * f) * this._ampY * ratio * this.scale;
+    this.offsetX = Math.sin(this.phase * 1.0 * f) * this._ampX * ratio * this.scale;
     this.roll    = -this.offsetX * 0.06;
 
     // footfall fires at the bottom of each vertical cycle (twice per stride)

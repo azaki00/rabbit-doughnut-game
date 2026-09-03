@@ -12,6 +12,8 @@ export class Hud {
     this.healthWrap = document.getElementById('healthWrap');
     this.healthBar = document.getElementById('healthBar');
     this.coinCount = document.getElementById('coinCount');
+    this.carrotRow = document.getElementById('carrotRow');
+    this.carrotCount = document.getElementById('carrotCount');
     this.toast = document.getElementById('toast');
     this.ammo = document.getElementById('ammo');
     this.ammoMag = document.getElementById('ammoMag');
@@ -46,6 +48,8 @@ export class Hud {
     this.healthBar.style.width = (s.health * 100) + '%';
 
     this.coinCount.textContent = s.coins;
+    this.carrotRow.classList.toggle('show', s.carrots > 0);
+    this.carrotCount.textContent = s.carrots;
 
     // weapon slots + ammo
     const gunOut = s.weapon === 'gun';

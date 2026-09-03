@@ -10,11 +10,11 @@ import { loadModel } from '../world/Loaders.js';
 
 export const LUNGE = {
   windMin: 0.15, windMax: 0.45,
-  radiusMin: 0.9, radiusMax: 1.5,
+  radiusMin: 1.35, radiusMax: 2.10,
   dashMin: 1.1,  dashMax: 2.4,
   dashDuration: 0.35,
   activeFrom: 0.10, activeTo: 0.28,   // grab hitbox live window, seconds into the dash
-  coneH: 70 * Math.PI / 180,
+  coneH: 110 * Math.PI / 180,
   coneV: 50 * Math.PI / 180,
   recovery: 1.2,
   scareRadius: 12,
@@ -206,9 +206,11 @@ export class Glove {
   _resolveGrab() {
     const radius = THREE.MathUtils.lerp(LUNGE.radiusMin, LUNGE.radiusMax, this.charge);
     // Grab originates at the glove, not the camera — §4.1
+    // Low: you are scooping a rabbit off the ground, so the reach starts at
+    // roughly waist height, not at the chest.
     const origin = this.ctrl.pos.clone()
       .addScaledVector(this.ctrl.flatForward, 0.45)
-      .setY(this.ctrl.pos.y - 0.55);
+      .setY(this.ctrl.pos.y - 0.95);
 
     const hit = this.onGrab?.(radius, origin, this.ctrl.forward);
     if (hit) {

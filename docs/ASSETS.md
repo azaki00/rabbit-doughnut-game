@@ -62,6 +62,31 @@ gait, the ear springs, and the landing squash all work exactly as specified.
 The static Poly rabbit, Hamster, and Jerboa become **decorative critters** —
 non-catchable ambient wildlife that make the world feel populated.
 
+### Later additions (all in use)
+
+| Asset | Used for | Notes |
+|---|---|---|
+| **Glove.fbx** | The player's red glove viewmodel | Authored with fingers along +Z — pointing at the camera. Yawed 180° in `Glove.js` |
+| **Resource_PineTree_Group.fbx** | Treeline + interior clumps | Materials ship near-black (`Wood #3f250e`, `Green #182e03`); recoloured on load |
+| **Resource_Tree_Group.fbx** | Deciduous variety, mixed with the pines | Same recolour treatment |
+| **House_1.fbx** | Timber-framed house, north-west plot | Materials also very dark (`#271106` walls, `#090909` windows) — caught by the luminance floor |
+| **Cottage.obj** + `Cottage Texture.png` | Log cabin, north-east plot | Needs MTL loading for its texture. Ships with a wide base plate — fit by `maxSize`, not height |
+| **grass/model.obj** | 420 instanced grass tufts | MTL is `materials.mtl`, **not** `model.mtl`. Flattened to one geometry with baked vertex colours |
+| **eggSunnysideUp.obj** | The Sunny-Side Sovereign boss | Wide and flat — must be fit by `maxSize` |
+| **assets/audio/shotgun.mp3** | The gunshot | **The only recorded audio in the project.** Everything else is synthesized; `Sfx.gunshot()` falls back to synthesis if it fails to load |
+
+### Three traps these assets exposed
+
+1. **Near-black source materials.** Several packs are authored for a renderer
+   with far more ambient light than ours. `Loaders.js` applies a luminance floor
+   (0.20) to any untextured material, and `recolor` remaps specific ones by name.
+2. **`fitToHeight` on wide, flat models.** The egg became 47 m across and the
+   Cottage's base plate swallowed the player. Use `maxSize` for anything wider
+   than it is tall.
+3. **A shared `MTLLoader` is not safe for concurrent loads.** `setPath` mutates
+   the instance, so the grass load clobbered the Cottage's resource path and its
+   texture silently 404'd, rendering the building black. One loader per call.
+
 ### Asset assignments
 
 | Need | Source |

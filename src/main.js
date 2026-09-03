@@ -5,6 +5,7 @@ import { Input } from './core/Input.js';
 import { Controller, MOVE } from './player/Controller.js';
 import { Glove, LUNGE } from './player/Glove.js';
 import { Gun, GUN } from './player/Gun.js';
+import { Hammer, HAMMER } from './player/Hammer.js';
 import { Greybox } from './world/Greybox.js';
 import { Rabbit, ST } from './rabbits/Rabbit.js';
 import { TYPES, SPAWNABLE } from './rabbits/types.js';
@@ -15,7 +16,9 @@ import { Hud } from './ui/Hud.js';
 import { Chest } from './world/Chest.js';
 import { Pickups } from './world/Pickups.js';
 import { CaseReel } from './ui/CaseReel.js';
+import { Settings } from './ui/Settings.js';
 import { EggBoss, BOSS } from './world/EggBoss.js';
+import { Carrots, CARROT } from './world/Carrots.js';
 
 // HARE & GLAZE — M1 "Feel" + the M2 saltation gait.
 // The one question this build exists to answer: does the lunge feel good?
@@ -45,19 +48,29 @@ const gun = new Gun(engine, player, {
   reload:  () => sfx.reload(),
 });
 
-// The glove can never be unequipped (§17.6) — swapping only decides which of
-// the two is IN HAND. Slot 1 is always the glove.
+const hammer = new Hammer(engine, player, {
+  hammerSwing: () => sfx.hammerSwing(),
+});
+
+// The glove can never be unequipped (§17.6) — swapping only decides which is
+// IN HAND. Slot 1 is always the glove; slot 3 is locked until bought.
+const WEAPON_NAMES = { glove: 'Red Glove', gun: 'The Culling Piece', hammer: 'The Tenderiser' };
 let weapon = 'glove';
 function swapTo(w) {
   if (w === weapon) return;
-  if (glove.busy || gun.busy) return;          // no swap-cancelling a lunge
+  if (w === 'hammer' && !hammer.owned) {
+    sfx.deny();
+    hud.say(`The Tenderiser — ${HAMMER.price}c at the table`, 'bad');
+    return;
+  }
+  if (glove.busy || gun.busy || hammer.busy) return;   // no swap-cancelling
   weapon = w;
-  hud.say(w === 'gun' ? 'The Culling Piece' : 'Red Glove', 'good', 0.9);
+  hud.say(WEAPON_NAMES[w], 'good', 0.9);
 }
 
 player.bob.onFootfall = i => sfx.footstep(i);
 
-const state = { coins: 0, health: 1, caught: 0, shot: 0, day: 1, skins: [] };
+const state = { coins: 0, health: 1, caught: 0, shot: 0, day: 1, skins: [], carrots: 0 };
 const rabbits = [];
 
 // ── the chest: where glove skins are unlocked ── §9.1
@@ -72,6 +85,9 @@ reel.onFinish = inst => {
   glove.applySkin(inst);           // equip it immediately
 };
 reel.onHide = () => { if (!input.locked) return; input.lock(); };
+
+// ── the hamster trader and his carrots ──
+const carrots = new Carrots(engine.scene, world, sfx);
 
 // ── hidden coins ── scattered behind cover, so exploring pays
 const pickups = new Pickups(engine.scene, world);
@@ -90,6 +106,10 @@ console.log(`[world] ${hiddenCount} coins hidden`);
 // clump, which buried both the boss and anyone walking up to it.
 const boss = new EggBoss(engine.scene, world, new THREE.Vector3(34, 0, -37), sfx);
 
+const TABLE_POS = new THREE.Vector3(0, 0, 0);   // cooking table, map centre §6.1
+const shellBar = document.getElementById('shellBar');
+const shellPips = shellBar.querySelector('.shellPips');
+const shellHint = shellBar.querySelector('.shellHint');
 const bossBar = document.getElementById('bossBar');
 const bossFill = bossBar.querySelector('.bossFill');
 const bossChip = bossBar.querySelector('.bossChip');
@@ -153,25 +173,31 @@ glove.onGrab = (radius, origin, dir) => {
     return null;
   }
 
+  // The reach is HORIZONTAL with a vertical tolerance, not a cone from eye
+  // height. A rabbit sits on the ground; measuring a 3D cone from the chest put
+  // every rabbit ~63 degrees below the aim axis and rejected nearly all of them.
   const flat = new THREE.Vector3(dir.x, 0, dir.z).normalize();
   let best = null, bestD = Infinity;
 
   for (const r of rabbits) {
     if (!r.alive || r.caught) continue;
-    const to = r.position.clone().sub(origin);
-    const d = to.length();
-    if (d > radius + 0.35) continue;
 
-    const toFlat = new THREE.Vector3(to.x, 0, to.z);
-    if (toFlat.lengthSq() > 1e-6) {
-      toFlat.normalize();
-      const hAng = Math.acos(THREE.MathUtils.clamp(flat.dot(toFlat), -1, 1));
+    const dx = r.position.x - origin.x;
+    const dz = r.position.z - origin.z;
+    const dy = (r.position.y + GRAB_BODY_Y) - origin.y;
+
+    const flatDist = Math.hypot(dx, dz);
+    if (flatDist > radius + GRAB_BONUS) continue;
+    if (Math.abs(dy) > GRAB_VERTICAL) continue;
+
+    // still has to be roughly in front of you
+    if (flatDist > 0.05) {
+      const hAng = Math.acos(THREE.MathUtils.clamp(
+        (flat.x * dx + flat.z * dz) / flatDist, -1, 1));
       if (hAng > LUNGE.coneH / 2) continue;
     }
-    const vAng = Math.atan2(Math.abs(to.y), Math.max(0.001, Math.hypot(to.x, to.z)));
-    if (vAng > LUNGE.coneV / 2) continue;
 
-    if (d < bestD) { bestD = d; best = r; }
+    if (flatDist < bestD) { bestD = flatDist; best = r; }
   }
 
   if (!best) return null;
@@ -192,6 +218,21 @@ glove.onGrab = (radius, origin, dir) => {
   return best;
 };
 
+// ── the hammer: the only thing the shell answers to ──
+hammer.onImpact = (origin, dir) => {
+  if (boss.alive && boss.root.position.distanceTo(origin) < BOSS.bodyRadius + HAMMER.range) {
+    const r = boss.hammer();
+    if (r === 'shell') {
+      hud.say(`CRACK  —  ${boss.shell} to go`, 'good', 1.1);
+    } else if (typeof r === 'number' && r > 0) {
+      hud.say(`${Math.round(r)}`, 'good', 0.5);
+    }
+    return;
+  }
+  // swung at nothing; the noise still carries
+  for (const rb of rabbits) rb.scare(origin, 14, player);
+};
+
 // A whiffed lunge sends everything nearby bolting. §4.1
 glove.onScare = (origin, radius) => {
   for (const r of rabbits) r.scare(origin, radius, player);
@@ -200,6 +241,11 @@ glove.onScare = (origin, radius) => {
 // ── the gun ──────────────────────────────────────────────────────────────────
 // Hitscan against rabbit bounding spheres. Deliberately generous to aim, and
 // deliberately unrewarding to use: shot meat is ruined. §GUN
+
+// Grab tuning — see glove.onGrab
+const GRAB_BODY_Y = 0.28;      // rabbit body centre above the ground
+const GRAB_VERTICAL = 1.6;     // how far up/down the reach forgives
+const GRAB_BONUS = 0.9;        // flat extra reach on top of the charge radius
 
 const _seg = new THREE.Vector3();
 // Generous on purpose. The gun is supposed to be the EASY option — its cost is
@@ -241,7 +287,9 @@ gun.onShoot = (origin, dir) => {
 };
 
 gun.onScare = (origin, radius) => {
-  for (const r of rabbits) r.scare(origin, radius, player);
+  // Rabbits still bolt — that is the gun's cost — but they do it SILENTLY.
+  // 15 squeals firing at once under the report was just noise on every shot.
+  for (const r of rabbits) r.scare(origin, radius, player, { silent: true });
 };
 
 // ── black rabbit proximity: the world goes quiet ── §5.4 / §13 ───────────────
@@ -272,6 +320,8 @@ function updateBlackRabbit(dt) {
 
 let wasExhausted = false;
 let gaspT = 0;
+let respawnT = 0;
+const POPULATION = 16;
 
 function step(dt) {
   if (input.locked) {
@@ -280,24 +330,55 @@ function step(dt) {
 
     if (input.hit('slot1')) swapTo('glove');
     if (input.hit('slot2')) swapTo('gun');
-    if (input.hit('swapWeapon')) swapTo(weapon === 'glove' ? 'gun' : 'glove');
+    if (input.hit('swapWeapon')) {
+      const order = hammer.owned ? ['glove', 'gun', 'hammer'] : ['glove', 'gun'];
+      swapTo(order[(order.indexOf(weapon) + 1) % order.length]);
+    }
+
+    if (input.hit('slot3')) swapTo('hammer');
 
     if (weapon === 'glove') glove.update(dt, input);
     gun.update(dt, input, weapon === 'gun');
+    hammer.update(dt, input, weapon === 'hammer');
     glove.root.visible = weapon === 'glove';
   }
 
   for (const r of rabbits) r.update(dt, player);
 
-  // reap caught rabbits, and keep the field populated
+  // reap caught rabbits
   for (let i = rabbits.length - 1; i >= 0; i--) {
     if (!rabbits[i].alive) {
       rabbits[i].dispose(engine.scene);
       rabbits.splice(i, 1);
-      const key = SPAWNABLE[Math.floor(Math.random() * SPAWNABLE.length)];
-      const a = Math.random() * Math.PI * 2;
-      spawn(key, Math.cos(a) * 38, Math.sin(a) * 38);
     }
+  }
+
+  // ── endless spawning ──
+  // Top the meadow back up to POPULATION on a timer rather than one-for-one on
+  // each catch, so the field never empties and never all arrives at once.
+  respawnT -= dt;
+  if (respawnT <= 0 && rabbits.length < POPULATION) {
+    respawnT = 1.1 + Math.random() * 1.4;
+    const key = SPAWNABLE[Math.floor(Math.random() * SPAWNABLE.length)];
+    const a = Math.random() * Math.PI * 2;
+    const d = 30 + Math.random() * 14;
+    spawn(key, Math.cos(a) * d, Math.sin(a) * d);
+  }
+
+  // ── carrots ──
+  carrots.update(dt, rabbits);
+  for (const r of rabbits) {
+    const c = carrots.lureFor(r.position);
+    r.lure = c ? c.target : null;
+  }
+
+  if (input.hit('dropCarrot') && state.carrots > 0) {
+    state.carrots--;
+    carrots.drop(player.pos, player.flatForward);
+    hud.say(`Carrot dropped — ${state.carrots} left`, 'good', 1.0);
+  } else if (input.hit('dropCarrot')) {
+    sfx.deny();
+    hud.say(`No carrots — ${CARROT.price}c from the hamster`, 'bad');
   }
 
   updateBlackRabbit(dt);
@@ -317,12 +398,69 @@ function step(dt) {
     if (hurtT <= 0) hurtEl.classList.remove('flash');
   }
 
+  // ── the hamster: carrots at 5c ──
+  const atTrader = !reel.visible && carrots.canTrade(player.pos);
+  if (atTrader) {
+    const afford = state.coins >= CARROT.price;
+    promptEl.className = 'show' + (afford ? '' : ' cant');
+    promptEl.innerHTML = `<kbd>E</kbd>Buy a carrot &nbsp;<span class="cost">${CARROT.price}c</span>` +
+      `&nbsp; <span style="opacity:.5">— drop with G</span>`;
+    if (input.hit('interact')) {
+      if (afford) {
+        state.coins -= CARROT.price;
+        state.carrots++;
+        sfx.purchase();
+        hud.say(`Carrot × ${state.carrots} — press G to drop`, 'good', 1.6);
+      } else {
+        sfx.deny();
+        hud.say('Not enough coins', 'bad');
+      }
+    }
+  }
+
+  // ── the table: buy the Tenderiser ── 2000c
+  const atTable = !reel.visible && !atTrader && player.pos.distanceTo(TABLE_POS) < 3.4;
+  if (atTable && !hammer.owned) {
+    const afford = state.coins >= HAMMER.price;
+    promptEl.className = 'show' + (afford ? '' : ' cant');
+    promptEl.innerHTML = `<kbd>E</kbd>Buy THE TENDERISER &nbsp;<span class="cost">${HAMMER.price}c</span>`;
+    if (input.hit('interact')) {
+      if (afford) {
+        state.coins -= HAMMER.price;
+        hammer.owned = true;
+        sfx.purchase();
+        hud.say('THE TENDERISER — press 3', 'good', 2.6);
+        document.getElementById('hammerSlot').classList.remove('locked');
+      } else {
+        sfx.deny();
+        hud.say(`You need ${HAMMER.price - state.coins}c more`, 'bad');
+      }
+    }
+  }
+
+  // ── the sealed egg ──
+  if (boss.alive && boss.sealed) {
+    const nearEgg = player.pos.distanceTo(boss.root.position) < 16;
+    shellBar.classList.toggle('show', nearEgg);
+    if (nearEgg && shellPips.childElementCount !== BOSS.shellHits) {
+      shellPips.innerHTML = '<i></i>'.repeat(BOSS.shellHits);
+    }
+    if (nearEgg) {
+      [...shellPips.children].forEach((pip, i) => pip.classList.toggle('gone', i >= boss.shell));
+      shellHint.textContent = hammer.owned
+        ? 'Press 3, then swing.'
+        : `Only the Tenderiser will crack this. ${HAMMER.price}c at the table.`;
+    }
+  } else {
+    shellBar.classList.remove('show');
+  }
+
   // ── chest interaction ──
   const canUse = !reel.visible && chest.canUse(player.pos, player.forward);
   chest.update(dt, canUse);
   pickups.update(dt, player.pos);
 
-  if (canUse) {
+  if (canUse && !atTable && !atTrader) {
     const afford = state.coins >= CASE_COST;
     promptEl.className = 'show' + (afford ? '' : ' cant');
     promptEl.innerHTML = `<kbd>E</kbd>Open a case &nbsp;<span class="cost">${CASE_COST}c</span>`;
@@ -338,7 +476,7 @@ function step(dt) {
         hud.say('Not enough coins', 'bad');
       }
     }
-  } else {
+  } else if (!atTrader && (!atTable || hammer.owned)) {
     promptEl.className = '';
   }
 
@@ -373,6 +511,7 @@ function frame() {
     exhausted: player.stamina.exhausted,
     health: state.health,
     coins: state.coins,
+    carrots: state.carrots,
     weapon,
     ammo: gun.ammo,
     reserve: gun.reserve,
@@ -392,38 +531,75 @@ bob    y${player.bob.y.toFixed(3)} x${player.bob.x.toFixed(3)} ph${player.bob.ph
 glove  ${['IDLE','WIND','DASH','RECOVER'][glove.state]}  chg ${glove.charge.toFixed(2)}
 noise  ${player.noiseRadius}m
 coins  ${state.coins}   hidden left ${pickups.remaining}   skins ${state.skins.length}
+carrot ${state.carrots} held, ${carrots.active.length} down   lured ${rabbits.filter(r => r.lure).length}
 weapon ${weapon}  ammo ${gun.ammo}/${gun.reserve}${gun.reloading > 0 ? ' RELOADING' : ''}
 caught ${state.caught}  shot ${state.shot}  coins ${state.coins}  rabbits ${rabbits.length}
 near   ${near ? `${near.r.type.name} ${near.d.toFixed(1)}m ${near.r.state} p${near.r.gait.phase.toFixed(2)}${near.r.gait.airborne ? ' AIR' : ''}` : '-'}
 black  ${blackNear.toFixed(2)}
-boss   ${boss.alive ? `${boss.state} ${Math.ceil(boss.health)}/${BOSS.maxHealth} rage ${boss.rage.toFixed(2)}` : 'DEAD'}`);
+boss   ${boss.alive ? `${boss.state} shell ${boss.shell} hp ${Math.ceil(boss.health)} rage ${boss.rage.toFixed(2)}` : 'DEAD'}
+hammer ${hammer.owned ? 'OWNED' : 'not bought'}`);
   }
 
   engine.render();
 }
 
+// ── settings ─────────────────────────────────────────────────────────────────
+
+const settings = new Settings();
+
+function applySettings(v) {
+  input.sensitivity = v.sensitivity / 1000;
+  player.invertY = v.invertY;
+  player.bob.scale = v.headBob / 100;
+  MOVE.fovBase = v.fov;
+  MOVE.fovSprint = v.fov + 7;
+  audio.setMasterVolume(v.masterVolume);
+  audio.setSfxVolume(v.sfxVolume);
+}
+settings.onChange = applySettings;
+applySettings(settings.values);
+
 // ── start gate ───────────────────────────────────────────────────────────────
 
 const gate = document.getElementById('gate');
 
-function enterGame() {
+async function enterGame() {
   audio.start();
-  gate.classList.add('hidden');
-  input.lock();
+  applySettings(settings.values);       // volumes need a live AudioContext
+  settings.close();
+
+  const ok = await input.lock();
+  if (ok) {
+    gate.classList.add('hidden');
+  } else {
+    // The browser refused (usually a cooldown right after Esc). Show the gate
+    // so there is always something clickable rather than a frozen screen.
+    gate.classList.remove('hidden');
+  }
 }
 
+// Resuming from the settings menu is the same path as pressing play.
+settings.onResume = enterGame;
+
 document.getElementById('startBtn').addEventListener('click', enterGame);
+document.getElementById('settingsBtn')?.addEventListener('click', () => settings.open());
 
 // Clicking the world re-locks. Without this, any stray Esc drops you into a
 // state where the keys look broken because movement is gated on pointer lock.
-canvas.addEventListener('click', () => { if (!input.locked) enterGame(); });
+canvas.addEventListener('click', () => {
+  if (!input.locked && !settings.visible && !reel.visible) enterGame();
+});
 
-input.onUnlock = () => gate.classList.remove('hidden');
+// Esc leaves pointer lock; show settings rather than a bare gate.
+input.onUnlock = () => {
+  if (reel.visible) return;
+  settings.open();
+};
 input.onToggleDebug = () => hud.toggleDebug();
 
 // Dev handle — lets tooling drive the camera without pointer lock.
-window.GAME = { engine, player, glove, gun, rabbits, world, state, hud, input, spawn, THREE,
-                chest, reel, pickups, boss,
+window.GAME = { engine, player, glove, gun, rabbits, world, state, hud, input, spawn, THREE, settings,
+                chest, reel, pickups, boss, hammer, carrots,
                 get weapon(){ return weapon; }, swapTo };
 
 frame();
