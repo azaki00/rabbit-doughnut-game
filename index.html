@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hare &amp; Glaze — M1</title>
+<link rel="stylesheet" href="styles/hud.css">
+<link rel="stylesheet" href="styles/case.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<canvas id="view"></canvas>
+
+<!-- ─── crosshair + lunge charge ring ─── -->
+<div id="reticle">
+  <div id="cross">
+    <i class="t up"></i><i class="t down"></i><i class="t left"></i><i class="t right"></i>
+  </div>
+  <div id="dot"></div>
+  <svg id="charge" viewBox="0 0 100 100">
+    <circle id="chargeTrack" cx="50" cy="50" r="34"></circle>
+    <circle id="chargeFill"  cx="50" cy="50" r="34"></circle>
+  </svg>
+  <svg id="stamArc" viewBox="0 0 100 100">
+    <path id="stamTrack" d="M 18 68 A 40 40 0 0 0 82 68"></path>
+    <path id="stamFill"  d="M 18 68 A 40 40 0 0 0 82 68"></path>
+  </svg>
+</div>
+
+<!-- ─── HUD ─── -->
+<div id="hud">
+  <div id="topbar"><span id="dayLabel">DAY 1</span></div>
+
+  <div id="bottomleft">
+    <div id="healthWrap"><div id="healthBar"></div></div>
+    <div id="coinRow"><span class="coinIcon">◍</span><span id="coinCount">0</span> c</div>
+  </div>
+
+  <div id="bottomright">
+    <div id="ammo">
+      <span id="ammoMag">2</span><span id="ammoSep">/</span><span id="ammoRes">12</span>
+    </div>
+    <div id="slots">
+      <div class="slot"></div><div class="slot"></div><div class="slot"></div>
+      <div class="slot"></div><div class="slot"></div><div class="slot"></div>
+      <div class="slot fixed active" id="gloveSlot"><span>🧤</span><b class="num">1</b></div>
+      <div class="slot weapon" id="gunSlot"><span>🔫</span><b class="num">2</b></div>
+      <div class="slot weapon locked" id="hammerSlot"><span>🔨</span><b class="num">3</b></div>
+    </div>
+  </div>
+
+  <div id="shellBar">
+    <div class="shellName">THE EGG</div>
+    <div class="shellPips"></div>
+    <div class="shellHint">Only the Tenderiser will crack this.</div>
+  </div>
+
+  <div id="bossBar">
+    <div class="bossName">THE SUNNY-SIDE SOVEREIGN</div>
+    <div class="bossTrack"><div class="bossFill"></div><div class="bossChip"></div></div>
+    <div class="bossHp"><span id="bossHpNum">4000</span> / 4000</div>
+  </div>
+
+  <div id="hurt"></div>
+  <div id="toast"></div>
+  <div id="prompt"></div>
+</div>
+
+<!-- ─── dev readout ─── -->
+<div id="debug"></div>
+
+<!-- ─── start gate (pointer lock needs a user gesture) ─── -->
+<div id="gate">
+  <div class="gateInner">
+    <h1>HARE &amp; GLAZE</h1>
+    <p class="sub">Milestone 1 — <em>Feel</em></p>
+    <div class="keys">
+      <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</div>
+      <div><kbd>Shift</kbd> sprint &nbsp;·&nbsp; <kbd>Ctrl</kbd> crouch &nbsp;·&nbsp; <kbd>Space</kbd> jump</div>
+      <div><kbd>Hold LMB</kbd> wind up &nbsp;→&nbsp; <kbd>release</kbd> lunge grab</div>
+      <div><kbd>1</kbd> glove &nbsp;·&nbsp; <kbd>2</kbd> gun &nbsp;·&nbsp; <kbd>3</kbd> hammer &nbsp;·&nbsp; <kbd>Q</kbd> swap</div>
+      <div><kbd>E</kbd> at the table to buy &nbsp;·&nbsp; <kbd>E</kbd> at the chest for cases</div>
+      <div><kbd>F1</kbd> debug &nbsp;·&nbsp; <kbd>Esc</kbd> release cursor</div>
+    </div>
+    <button id="startBtn">CLICK TO PLAY</button>
+    <p class="hint">Charge the lunge longer for more reach. Miss and you stumble.<br>
+    The gun is easier. It also ruins the meat and empties the field.</p>
+  </div>
+</div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
