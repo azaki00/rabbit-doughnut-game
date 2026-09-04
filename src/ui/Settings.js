@@ -8,6 +8,7 @@ export const DEFAULTS = {
   invertY: false,
   masterVolume: 75,
   sfxVolume: 100,
+  musicVolume: 55,
   headBob: 100,
 };
 
@@ -35,8 +36,15 @@ export class Settings {
     this._addSlider('fov', 'Field of view', 60, 110, 1, v => v + '°');
     this._addSlider('masterVolume', 'Master volume', 0, 100, 1, v => v + '%');
     this._addSlider('sfxVolume', 'Effects volume', 0, 100, 1, v => v + '%');
+    this._addSlider('musicVolume', 'Music volume', 0, 100, 1, v => v + '%');
     this._addSlider('headBob', 'Head bob', 0, 150, 5, v => v + '%');
     this._addToggle('invertY', 'Invert vertical look');
+
+    // ── dev tools ──
+    // Testing the 2000c hammer, the 250c cases and the 5c carrots by actually
+    // catching 400 rabbits is not a reasonable way to spend an afternoon.
+    this._addHeading('DEV TOOLS');
+    this._addAction('Grant coins', '+10,000c', () => this.onDevCoins?.(10000));
 
     // RESUME is a real user gesture, which is the only reliable moment to
     // re-acquire pointer lock. close() alone must NOT try to lock, or closing
@@ -95,6 +103,35 @@ export class Settings {
       btn.textContent = this.values[key] ? 'ON' : 'OFF';
     };
     this.rows.appendChild(row);
+  }
+
+  _addHeading(text) {
+    const row = document.createElement('div');
+    row.className = 'setHeading';
+    row.textContent = text;
+    this.rows.appendChild(row);
+  }
+
+  // A row whose control is a button that just does something, right now.
+  _addAction(label, buttonText, fn) {
+    const row = document.createElement('div');
+    row.className = 'setRow';
+    row.innerHTML = `
+      <label>${label}</label>
+      <button class="setToggle setAction">${buttonText}</button>
+      <span class="setVal"></span>`;
+    const btn = row.querySelector('button');
+    const val = row.querySelector('.setVal');
+    btn.addEventListener('click', () => {
+      fn();
+      // the menu covers the HUD, so confirm the click here
+      val.textContent = 'done';
+      btn.classList.add('on');
+      clearTimeout(row._t);
+      row._t = setTimeout(() => { val.textContent = ''; btn.classList.remove('on'); }, 900);
+    });
+    this.rows.appendChild(row);
+    return row;
   }
 
   reset() {

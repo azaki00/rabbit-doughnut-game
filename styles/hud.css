@@ -169,6 +169,13 @@ body.playing #hud { opacity: 1; }
   position: absolute; top: 1px; right: 4px;
   font-size: 9px; font-weight: normal; opacity: .45;
 }
+/* carried-count badge, bottom-right, for consumables rather than weapons */
+.slot .kitNum {
+  position: absolute; bottom: 0; right: 4px;
+  font-size: 10px; font-weight: bold; opacity: .9;
+  color: var(--butter, #ffd98e);
+}
+.slot.locked .kitNum { opacity: .25; }
 .slot.weapon {
   margin-left: 6px;
   border: 2px solid rgba(253,243,227,.34);

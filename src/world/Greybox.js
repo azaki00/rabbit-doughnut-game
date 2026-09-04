@@ -189,15 +189,21 @@ export class Greybox {
       g.add(leg);
     }
 
-    // four station markers: grinder, mixer, fryer, glaze
+    // four station markers: grinder, mixer, fryer, glaze.
+    // `stations` is the world position of each box's TOP face — anything meant
+    // to sit or float above a station hangs off these rather than re-deriving
+    // the layout. Station 0 carries the Tenderiser on display.
     const cols = [0x6d6a75, 0xd9c9a8, 0xd08a3a, 0xe4a8c0];
+    const BOX_H = 0.42;
+    this.stations = [];
     cols.forEach((c, i) => {
       const m = new THREE.Mesh(
-        new THREE.BoxGeometry(0.62, 0.42, 0.62),
+        new THREE.BoxGeometry(0.62, BOX_H, 0.62),
         new THREE.MeshStandardMaterial({ color: c, roughness: .8, flatShading: true }));
       m.position.set(-1.6 + i * 1.07, 1.32, 0);
       m.castShadow = true;
       g.add(m);
+      this.stations.push(new THREE.Vector3(m.position.x, m.position.y + BOX_H / 2, m.position.z));
     });
 
     this.scene.add(g);

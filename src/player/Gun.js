@@ -10,7 +10,7 @@ import { LAYER_VIEWMODEL } from '../core/Engine.js';
 // It exists for the rabbit you cannot corner, and for players who want it.
 
 export const GUN = {
-  magazine: 2,            // cosmetic now — ammo is unlimited
+  magazine: 2,            // two shells, then it breaks open and reloads
   reloadTime: 1.9,
   fireDelay: 0.30,        // between shots
   range: 45,
@@ -19,7 +19,7 @@ export const GUN = {
   recoilKick: 0.16,
   scareRadius: 40,
   meatPenalty: 0.45,      // value multiplier on a shot rabbit
-  ammoCost: 12,           // coins per shell
+  ammoCost: 12,           // coins per shell — unused while the reserve is infinite
 };
 
 export class Gun {
@@ -99,14 +99,49 @@ export class Gun {
     guard.rotation.set(Math.PI / 2, 0, 0);
     this.gun.add(guard);
 
-    // muzzle flash — hidden until fired
-    this.muzzle = new THREE.Mesh(
-      new THREE.ConeGeometry(0.05, 0.16, 6),
-      new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0 })
-    );
-    this.muzzle.rotation.x = -Math.PI / 2;
-    this.muzzle.position.set(0, 0.018, -0.53);
+    // ── muzzle flash ──
+    // Three parts, because one fading cone reads as a glow rather than a bang:
+    // a hot cone of gas out of the bore, a four-point star across it, and a
+    // light that actually throws the gun and your hands into relief for two
+    // frames. All of it is hidden at rest and driven by `this.flash`.
+    // In FRONT of the bore, not level with it. At z -0.52 the flash sat just
+    // inside the barrel tip (which ends at -0.56) and was depth-tested away —
+    // the whole effect was invisible without a single error to show for it.
+    this.muzzle = new THREE.Group();
+    this.muzzle.position.set(0, 0.018, -0.60);
     this.gun.add(this.muzzle);
+
+    this.flashCone = new THREE.Mesh(
+      new THREE.ConeGeometry(0.075, 0.26, 7, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: 0xfff0c0, transparent: true, opacity: 0,
+        blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+      }),
+    );
+    this.flashCone.rotation.x = -Math.PI / 2;
+    this.flashCone.position.z = -0.09;
+    this.muzzle.add(this.flashCone);
+
+    // the star: two crossed quads, spun a random amount every shot
+    this.flashStar = new THREE.Group();
+    const starMat = new THREE.MeshBasicMaterial({
+      color: 0xffcf6a, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    });
+    for (const rot of [0, Math.PI / 2]) {
+      const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.30, 0.055), starMat);
+      blade.rotation.z = rot;
+      this.flashStar.add(blade);
+    }
+    this.flashStar.position.z = -0.02;
+    this.muzzle.add(this.flashStar);
+    this.flashStarMat = starMat;
+
+    // Viewmodel lights live on the viewmodel layer or they light nothing —
+    // Three filters lights by layer exactly as it filters meshes.
+    this.flashLight = new THREE.PointLight(0xffc06a, 0, 2.2, 2);
+    this.flashLight.position.set(0, 0.02, -0.1);
+    this.muzzle.add(this.flashLight);
 
     this.root.add(this.gun);
     this.root.traverse(o => o.layers.set(LAYER_VIEWMODEL));
@@ -128,11 +163,19 @@ export class Gun {
 
     if (this.reloading > 0) {
       this.reloading -= dt;
+      // The reserve is infinite, so a reload always refills — but you still
+      // spend the 1.9s, and that is the whole cost of the two-shell magazine.
       if (this.reloading <= 0) this.ammo = GUN.magazine;
     }
 
     if (active) {
       if (input.lmbDown) this._fire();
+      // top up automatically the moment the barrels are empty; there is
+      // nothing to decide about, so do not make the player press R
+      if (this.ammo <= 0 && this.reloading <= 0 && this.cooldown <= 0) this._startReload();
+      else if (input.hit?.('reload') && this.ammo < GUN.magazine && this.reloading <= 0) {
+        this._startReload();
+      }
     }
 
     // recoil spring back to zero
@@ -140,9 +183,16 @@ export class Gun {
     this.recoilVel += (-stiff * this.recoil - damp * this.recoilVel) * dt;
     this.recoil += this.recoilVel * dt;
 
-    this.flash = Math.max(0, this.flash - dt * 14);
-    this.muzzle.material.opacity = this.flash;
-    this.muzzle.scale.setScalar(0.6 + this.flash * 0.9);
+    // The flash is very short and very bright — ~70ms of visible life.
+    this.flash = Math.max(0, this.flash - dt * 15);
+    const f = this.flash;
+    const punch = f * f;                       // fall off fast, not linearly
+    this.flashCone.material.opacity = Math.min(1, punch * 1.5);
+    this.flashStarMat.opacity = Math.min(0.9, punch * 1.0);
+    this.flashCone.scale.set(0.7 + f * 0.7, 0.6 + f * 1.1, 0.7 + f * 0.7);
+    this.flashStar.scale.setScalar(0.3 + punch * 0.8);
+    this.flashLight.intensity = punch * 9;
+    this.muzzle.visible = f > 0.001;
 
     if (active) this._animate(dt, input);
   }
@@ -156,14 +206,17 @@ export class Gun {
     if (this.cooldown > 0 || this.reloading > 0) return;
     if (this.ammo <= 0) { this.audio?.dryFire(); return; }
 
-    // Unlimited ammo: the shell is never actually spent, so the break-action
-    // rhythm survives but you never stop to think about it.
+    // Two shells, then a reload — but the reserve is infinite, so you never
+    // run dry, you only ever run LATE. The rhythm is the cost, not the count.
+    this.ammo -= 1;
     this.cooldown = GUN.fireDelay;
 
     // recoil
     this.recoilVel -= 5.2;
     this.ctrl.pitch += GUN.recoilPitch * (0.75 + Math.random() * 0.5);
     this.flash = 1;
+    this.flashStar.rotation.z = Math.random() * Math.PI;   // never the same shape twice
+    this.muzzle.visible = true;
 
     // hitscan from the eye, with a little spread
     const dir = this.ctrl.forward.clone();

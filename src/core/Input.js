@@ -14,10 +14,13 @@ const BINDS = {
   KeyR: 'reload',
   KeyQ: 'swapWeapon',
   KeyG: 'dropCarrot',
+  KeyH: 'useHeal',      // drink a carried shake, anywhere
+  KeyB: 'buyHeal',      // buy one to carry, at the healing booth
   Tab: 'inventory',
   Digit1: 'slot1',
   Digit2: 'slot2',
   Digit3: 'slot3',
+  Digit4: 'slot4',
 };
 
 export class Input {

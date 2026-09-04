@@ -72,7 +72,9 @@ non-catchable ambient wildlife that make the world feel populated.
 | **House_1.fbx** | Timber-framed house, north-west plot | Materials also very dark (`#271106` walls, `#090909` windows) — caught by the luminance floor |
 | **Cottage.obj** + `Cottage Texture.png` | Log cabin, north-east plot | Needs MTL loading for its texture. Ships with a wide base plate — fit by `maxSize`, not height |
 | **grass/model.obj** | 420 instanced grass tufts | MTL is `materials.mtl`, **not** `model.mtl`. Flattened to one geometry with baked vertex colours |
-| **eggSunnysideUp.obj** | The Sunny-Side Sovereign boss | Wide and flat — must be fit by `maxSize` |
+| **EggWithShell/model.obj** | The boss's sealed phase — the intact egg you hammer | Unit-scale upright ovoid, fit by height. Its `materials.mtl` is a flat white; crack lines are procedural, laid on the ovoid surface |
+| **eggSunnysideUp.obj** | The Sunny-Side Sovereign, revealed once the shell cracks | Wide and flat — must be fit by `maxSize`. **Must be loaded with `mtl: true`**: the two material groups (`lambert2SG` white, `lambert3SG` yolk) only exist with the MTL, and `EggBoss` forces them to white/yellow after load |
+| **horse/WildHorse.obj** + `WildHorse_BaseColor.png` | The four wild horses | Needs `mtl: true` for its texture. Authored facing **+Z**, so the mesh carries a 180° yaw inside its group |
 | **assets/audio/shotgun.mp3** | The gunshot | **The only recorded audio in the project.** Everything else is synthesized; `Sfx.gunshot()` falls back to synthesis if it fails to load |
 
 ### Three traps these assets exposed

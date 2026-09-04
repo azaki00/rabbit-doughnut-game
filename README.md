@@ -30,18 +30,18 @@ Server. Chrome or Edge recommended.
 
 ## Controls
 
-| Key | Action |
-|---|---|
-| `W` `A` `S` `D` | Move |
-| `Shift` | Sprint — drains stamina |
-| `Ctrl` | Crouch — cuts your noise radius by 70% |
-| `Space` | Jump |
-| **Hold `LMB` → release** | **Lunge grab** |
-| `1` / `2` / `3` | Glove / Gun / Hammer |
-| `Q` | Cycle weapon |
-| `E` | Interact — buy at the table, open cases at the chest |
-| `F1` | Debug readout |
-| `Esc` | Settings |
+| Key                      | Action                                               |
+| ------------------------ | ---------------------------------------------------- |
+| `W` `A` `S` `D`          | Move                                                 |
+| `Shift`                  | Sprint — drains stamina                              |
+| `Ctrl`                   | Crouch — cuts your noise radius by 70%               |
+| `Space`                  | Jump                                                 |
+| **Hold `LMB` → release** | **Lunge grab**                                       |
+| `1` / `2` / `3`          | Glove / Gun / Hammer                                 |
+| `Q`                      | Cycle weapon                                         |
+| `E`                      | Interact — buy at the table, open cases at the chest |
+| `F1`                     | Debug readout                                        |
+| `Esc`                    | Settings                                             |
 
 ---
 
@@ -68,8 +68,8 @@ They do not run. They **bound**.
 
 The locomotion is procedurally animated saltation, built from how rabbits
 actually move: the spine flexes and extends like a spring, the body follows a
-real ballistic arc between contacts, and the powerful hind legs plant *outside
-and ahead of* the front feet. The ears are damped springs that flop backward on
+real ballistic arc between contacts, and the powerful hind legs plant _outside
+and ahead of_ the front feet. The ears are damped springs that flop backward on
 launch and forward on landing.
 
 The rule that matters when you are hunting: **a rabbit can only change direction
@@ -80,12 +80,12 @@ They also freeze when alerted — which is real rabbit behaviour, and is your ca
 window. And they have near-panoramic vision with a blind spot directly in front
 of the nose, so sneaking up head-on genuinely works.
 
-| Rabbit | Speed | Behaviour | Value |
-|---|---|---|---|
-| **Cottontail** | 3.4 m/s | Panics early, tires quickly | 10c |
-| **Lop** | 2.4 m/s | Slow, dopey, trips over its own ears | 15c |
-| **Jack** | 6.0 m/s | Fast and long-legged. Corner it | 45c |
-| **Black Rabbit** | 4.2 m/s | Doesn't flee. Circles you at 8 m and stares | 120c |
+| Rabbit           | Speed   | Behaviour                                   | Value |
+| ---------------- | ------- | ------------------------------------------- | ----- |
+| **Cottontail**   | 3.4 m/s | Panics early, tires quickly                 | 10c   |
+| **Lop**          | 2.4 m/s | Slow, dopey, trips over its own ears        | 15c   |
+| **Jack**         | 6.0 m/s | Fast and long-legged. Corner it             | 45c   |
+| **Black Rabbit** | 4.2 m/s | Doesn't flee. Circles you at 8 m and stares | 120c  |
 
 ### The Black Rabbit
 
@@ -101,7 +101,7 @@ it, or eat it raw.
 
 ## The gun
 
-**The Culling Piece** is deliberately the *worse* way to take a rabbit:
+**The Culling Piece** is deliberately the _worse_ way to take a rabbit:
 
 - shot meat is **ruined** — worth 45% of a clean catch
 - the report carries **40 m** and empties the field
@@ -113,21 +113,37 @@ It exists for the rabbit you cannot corner, and for the boss.
 
 ## 🥚 The Sunny-Side Sovereign
 
-A giant egg sits inert in the south-east corner of the meadow. Nothing you own
-can hurt it. Shoot it and the bullets ping off.
+A giant **unbroken egg** sits inert in the south-east corner of the meadow.
+Nothing you own can hurt it. Shoot it and the bullets ping off. Hit it with the
+Tenderiser and another crack spreads across the shell.
 
 To start the fight you have to:
 
-1. **Earn 2000 coins**
+1. **Earn 1000 coins**
 2. **Buy The Tenderiser** at the cooking table (`E`)
 3. **Crack the shell** — six good hammer blows
 
-Then the Sovereign is summoned, and it is extremely awake. It chases, it slams
+On the sixth blow the shell bursts apart and the Sovereign — a fried egg the
+size of a car, yolk and all — is revealed underneath. It is extremely awake. It chases, it slams
 with a telegraphed ground pound, and past a certain point it starts throwing
 yolk. It gets faster and hits harder the more damage it has taken. The yolk is
 its weak point, worth 2.2× damage.
 
 It is the only thing in the game that can meaningfully hurt you.
+
+---
+
+## 🐴 Wild horses
+
+Four of them graze around the meadow. Walk up to one and press `E`.
+
+You get **four seconds**. The horse runs wherever you look, at roughly three
+times your sprint — far enough to cross the map — and then it decides it has had
+enough of you and throws you over its head. You land stumbling, and it bolts.
+
+It is a traversal tool with a hard timer and a punishing exit. You do not tame
+it; it tolerates you, briefly. Hooves also carry: every rabbit within 26m is
+gone by the time you land.
 
 ---
 
@@ -137,21 +153,21 @@ Straight out of the Counter-Strike playbook, and honest about it.
 
 The chest sits beside the cooking table. Cases cost **250c** and open with a
 horizontal spinning ticket reel: six seconds, quintic ease-out, a tick each time
-a ticket crosses the marker so the audio *is* the deceleration curve, and a
+a ticket crosses the marker so the audio _is_ the deceleration curve, and a
 deliberately off-centre landing so near-misses feel like near-misses.
 
 **19 skins across 7 rarity tiers**, with a wear/float value so no two drops are
 identical — a Factory New Bloodstained Velvet at 0.041 is a different item from a
 Battle-Scarred one. The odds are shown openly on the machine.
 
-| Tier | Odds |
-|---|---|
-| Consumer | 79.92% |
-| Industrial | 15.98% |
-| Mil-Spec | 3.20% |
-| Restricted | 0.64% |
-| Classified | 0.26% |
-| Covert | 0.20% |
+| Tier               | Odds       |
+| ------------------ | ---------- |
+| Consumer           | 79.92%     |
+| Industrial         | 15.98%     |
+| Mil-Spec           | 3.20%      |
+| Restricted         | 0.64%      |
+| Classified         | 0.26%      |
+| Covert             | 0.20%      |
 | ★ **Golden Glove** | **0.026%** |
 
 **Skins are cosmetic. Always.** The glove's catching stats never change —
@@ -191,11 +207,11 @@ two layers, so the tiling never becomes obvious at distance.
 
 ## Documentation
 
-| Document | What it is |
-|---|---|
-| **[ARCHITECTURE.md](ARCHITECTURE.md)** | Codebase map. Start here to contribute |
+| Document                                       | What it is                               |
+| ---------------------------------------------- | ---------------------------------------- |
+| **[ARCHITECTURE.md](ARCHITECTURE.md)**         | Codebase map. Start here to contribute   |
 | **[docs/GAME_DESIGN.md](docs/GAME_DESIGN.md)** | The design bible — every system, and why |
-| **[docs/ASSETS.md](docs/ASSETS.md)** | Every model in `OBJECTS/` and its role |
+| **[docs/ASSETS.md](docs/ASSETS.md)**           | Every model in `OBJECTS/` and its role   |
 
 ---
 

@@ -17,6 +17,8 @@ export const TYPES = {
     tail: 0.075,
     fleeStamina: 6.0,          // gives up and grazes again after 6s
     vision: 18, fov: 300,
+    // what it leaves on the ground when shot — MeatDrops.js
+    meat: { scale: 0.95, color: 0xc03a2c, fat: 0xf3d3ae, label: 'Cottontail cut' },
   },
 
   lop: {
@@ -31,6 +33,8 @@ export const TYPES = {
     tripChance: 0.15,          // trips over its own ears
     fleeStamina: 4.0,
     vision: 14, fov: 300,
+    // big and soft: the largest slab, and the fattiest
+    meat: { scale: 1.25, color: 0xcf5548, fat: 0xfae4c4, label: 'Lop cut' },
   },
 
   jack: {
@@ -43,6 +47,8 @@ export const TYPES = {
     tail: 0.055,
     fleeStamina: 12.0,
     vision: 24, fov: 300,
+    // long, lean and dark — all that running
+    meat: { scale: 1.15, color: 0x8e2018, fat: 0xd9bb92, label: 'Jack cut' },
   },
 
   black: {
@@ -61,6 +67,8 @@ export const TYPES = {
     silent: true,
     fleeStamina: Infinity,
     vision: 30, fov: 360,
+    // §13. You should probably not eat this.
+    meat: { scale: 1.3, color: 0x2a1220, fat: 0x5e3040, label: 'Black Rabbit cut' },
   },
 };
 

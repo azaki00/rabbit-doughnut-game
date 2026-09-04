@@ -289,6 +289,17 @@
 }
 .setToggle.on { background: rgba(143,211,182,.25); border-color: #8fd3b6; color: #d8f4e8; }
 
+/* dev tools: deliberately marked out from the real settings above */
+.setHeading {
+  font-size: 10px; letter-spacing: .32em; font-weight: bold;
+  opacity: .38; margin: 20px 0 4px;
+  padding-top: 14px; border-top: 1px solid rgba(255,255,255,.10);
+}
+.setToggle.setAction {
+  border-color: rgba(242,162,180,.5); color: #f7c9d3;
+  background: rgba(242,162,180,.10);
+}
+
 .setBtns { display: flex; gap: 10px; margin-top: 22px; }
 .setBtns button {
   flex: 1; padding: 11px 0; cursor: pointer;

@@ -1,29 +1,36 @@
-import * as THREE from 'three';
-import { Engine } from './core/Engine.js';
-import { Time } from './core/Time.js';
-import { Input } from './core/Input.js';
-import { Controller, MOVE } from './player/Controller.js';
-import { Glove, LUNGE } from './player/Glove.js';
-import { Gun, GUN } from './player/Gun.js';
-import { Hammer, HAMMER } from './player/Hammer.js';
-import { Greybox } from './world/Greybox.js';
-import { Rabbit, ST } from './rabbits/Rabbit.js';
-import { TYPES, SPAWNABLE } from './rabbits/types.js';
-import { AudioEngine } from './audio/AudioEngine.js';
-import { RabbitVoice } from './audio/RabbitVoice.js';
-import { Sfx } from './audio/Sfx.js';
-import { Hud } from './ui/Hud.js';
-import { Chest } from './world/Chest.js';
-import { Pickups } from './world/Pickups.js';
-import { CaseReel } from './ui/CaseReel.js';
-import { Settings } from './ui/Settings.js';
-import { EggBoss, BOSS } from './world/EggBoss.js';
-import { Carrots, CARROT } from './world/Carrots.js';
+import * as THREE from "three";
+import { Engine } from "./core/Engine.js";
+import { Time } from "./core/Time.js";
+import { Input } from "./core/Input.js";
+import { Controller, MOVE } from "./player/Controller.js";
+import { Glove, LUNGE } from "./player/Glove.js";
+import { Gun, GUN } from "./player/Gun.js";
+import { Hammer, HAMMER, buildTenderiser } from "./player/Hammer.js";
+import { Toothbrush, BRUSH } from "./player/Toothbrush.js";
+import { Greybox } from "./world/Greybox.js";
+import { Rabbit, ST } from "./rabbits/Rabbit.js";
+import { TYPES, SPAWNABLE } from "./rabbits/types.js";
+import { AudioEngine } from "./audio/AudioEngine.js";
+import { RabbitVoice } from "./audio/RabbitVoice.js";
+import { Sfx } from "./audio/Sfx.js";
+import { Hud } from "./ui/Hud.js";
+import { Chest } from "./world/Chest.js";
+import { Pickups } from "./world/Pickups.js";
+import { CaseReel } from "./ui/CaseReel.js";
+import { Settings } from "./ui/Settings.js";
+import { EggBoss, BOSS } from "./world/EggBoss.js";
+import { Carrots, CARROT } from "./world/Carrots.js";
+import { Horses, HORSE } from "./world/Horses.js";
+import { Chickens, CHICKEN } from "./world/Chickens.js";
+import { MeatDrops } from "./world/MeatDrops.js";
+import { Impacts } from "./world/Impacts.js";
+import { Music } from "./audio/Music.js";
+import { HealingBooth, HEAL } from "./world/HealingBooth.js";
 
 // HARE & GLAZE — M1 "Feel" + the M2 saltation gait.
 // The one question this build exists to answer: does the lunge feel good?
 
-const canvas = document.getElementById('view');
+const canvas = document.getElementById("view");
 const engine = new Engine(canvas);
 const input = new Input(canvas);
 const time = new Time();
@@ -34,43 +41,64 @@ const player = new Controller(world);
 
 const audio = new AudioEngine();
 const sfx = new Sfx(audio);
+const music = new Music(audio);
 const voice = new RabbitVoice(audio, () => player.pos);
 
 const glove = new Glove(engine, player, {
   windUp: () => sfx.windUp(),
-  lunge: c => sfx.lunge(c),
+  lunge: (c) => sfx.lunge(c),
   whiff: () => sfx.whiff(),
 });
 
 const gun = new Gun(engine, player, {
   gunshot: () => sfx.gunshot(),
   dryFire: () => sfx.dryFire(),
-  reload:  () => sfx.reload(),
+  reload: () => sfx.reload(),
 });
 
 const hammer = new Hammer(engine, player, {
   hammerSwing: () => sfx.hammerSwing(),
 });
 
+// The one you start with. No purchase, no unlock — it is in your pocket.
+const brush = new Toothbrush(engine, player, {
+  brushSwing: () => sfx.brushSwing(),
+});
+
 // The glove can never be unequipped (§17.6) — swapping only decides which is
 // IN HAND. Slot 1 is always the glove; slot 3 is locked until bought.
-const WEAPON_NAMES = { glove: 'Red Glove', gun: 'The Culling Piece', hammer: 'The Tenderiser' };
-let weapon = 'glove';
+const WEAPON_NAMES = {
+  glove: "Red Glove",
+  gun: "The Culling Piece",
+  hammer: "The Tenderiser",
+  brush: "Toothbrush",
+};
+let weapon = "glove";
 function swapTo(w) {
   if (w === weapon) return;
-  if (w === 'hammer' && !hammer.owned) {
+  if (w === "hammer" && !hammer.owned) {
     sfx.deny();
-    hud.say(`The Tenderiser — ${HAMMER.price}c at the table`, 'bad');
+    hud.say(`The Tenderiser — ${HAMMER.price}c at the table`, "bad");
     return;
   }
-  if (glove.busy || gun.busy || hammer.busy) return;   // no swap-cancelling
+  if (glove.busy || gun.busy || hammer.busy || brush.busy) return; // no swap-cancelling
   weapon = w;
-  hud.say(WEAPON_NAMES[w], 'good', 0.9);
+  hud.say(WEAPON_NAMES[w], "good", 0.9);
 }
 
-player.bob.onFootfall = i => sfx.footstep(i);
+player.bob.onFootfall = (i) => sfx.footstep(i);
 
-const state = { coins: 0, health: 1, caught: 0, shot: 0, day: 1, skins: [], carrots: 0 };
+const state = {
+  coins: 0,
+  health: 1,
+  caught: 0,
+  shot: 0,
+  day: 1,
+  skins: [],
+  carrots: 0,
+  proteinShake: 0, // dropped by the Sovereign. Purpose to be decided.
+  healKits: 0, // shakes bought at the booth, drunk with H
+};
 const rabbits = [];
 
 // ── the chest: where glove skins are unlocked ── §9.1
@@ -78,23 +106,63 @@ const rabbits = [];
 const CASE_COST = 250;
 const chest = new Chest(engine.scene, new THREE.Vector3(3.6, 0, 1.9));
 const reel = new CaseReel(sfx);
-const promptEl = document.getElementById('prompt');
+const promptEl = document.getElementById("prompt");
 
-reel.onFinish = inst => {
+reel.onFinish = (inst) => {
   state.skins.push(inst);
-  glove.applySkin(inst);           // equip it immediately
+  glove.applySkin(inst); // equip it immediately
 };
-reel.onHide = () => { if (!input.locked) return; input.lock(); };
+reel.onHide = () => {
+  if (!input.locked) return;
+  input.lock();
+};
 
 // ── the hamster trader and his carrots ──
 const carrots = new Carrots(engine.scene, world, sfx);
 
+// ── wild horses ── four seconds of gallop, then the ground
+const horses = new Horses(engine.scene, world, sfx);
+horses.onScare = (origin, radius) => {
+  // hooves, not gunfire: they bolt, but they do not all scream at once
+  for (const r of rabbits) r.scare(origin, radius, player, { silent: true });
+};
+
+// ── bullet marks ── every shot leaves something behind for 4 seconds
+const impacts = new Impacts(engine.scene);
+
+// ── the meat you shot ── shot rabbits pay on collection, not on the shot
+const meat = new MeatDrops(engine.scene, world, sfx);
+meat.onCollect = (value, label) => {
+  state.coins += value;
+  sfx.meatPickup();
+  hud.say(`${label}  +${value}c`, "good", 1.2);
+};
+
+// ── the Sovereign's chickens ── phase two
+const chickens = new Chickens(engine.scene, world, sfx);
+
+// ── the healing booth ── the only way to get health back
+// Stands beside the cooking table, in the spot the carrot stall used to have
+// before it moved out behind the house.
+const healing = new HealingBooth(
+  engine.scene,
+  world,
+  new THREE.Vector3(-4.6, 0, 3.2),
+  sfx,
+);
+
+function healToFull() {
+  state.health = 1;
+  sfx.heal?.();
+  hud.say("Patched up", "good", 1.6);
+}
+
 // ── hidden coins ── scattered behind cover, so exploring pays
 const pickups = new Pickups(engine.scene, world);
-pickups.onCollect = v => {
+pickups.onCollect = (v) => {
   state.coins += v;
   sfx.coin();
-  hud.say(`+${v}c`, 'good', 0.8);
+  hud.say(`+${v}c`, "good", 0.8);
 };
 const hiddenCount = pickups.scatterHidden();
 console.log(`[world] ${hiddenCount} coins hidden`);
@@ -104,38 +172,92 @@ console.log(`[world] ${hiddenCount} coins hidden`);
 // within 26m. Then it does.
 // Placed in the clear south-east corner — the original spot sat inside a tree
 // clump, which buried both the boss and anyone walking up to it.
-const boss = new EggBoss(engine.scene, world, new THREE.Vector3(34, 0, -37), sfx);
+const boss = new EggBoss(
+  engine.scene,
+  world,
+  new THREE.Vector3(34, 0, -37),
+  sfx,
+);
 
-const TABLE_POS = new THREE.Vector3(0, 0, 0);   // cooking table, map centre §6.1
-const shellBar = document.getElementById('shellBar');
-const shellPips = shellBar.querySelector('.shellPips');
-const shellHint = shellBar.querySelector('.shellHint');
-const bossBar = document.getElementById('bossBar');
-const bossFill = bossBar.querySelector('.bossFill');
-const bossChip = bossBar.querySelector('.bossChip');
-const bossHpNum = document.getElementById('bossHpNum');
-const hurtEl = document.getElementById('hurt');
+const TABLE_POS = new THREE.Vector3(0, 0, 0); // cooking table, map centre §6.1
+
+// ── the Tenderiser on display ──
+// Turning slowly over the first of the table's four stations, so the thing you
+// are being asked for 1000c is a thing you can walk up to and look at. It is
+// the same geometry as the viewmodel, and it vanishes the moment you own it —
+// because at that point it is in your hands.
+const tenderiserDisplay = new THREE.Group();
+{
+  const shown = buildTenderiser();
+  shown.scale.setScalar(1.8); // display size, not hand size — it has to read across the clearing
+  shown.traverse((o) => {
+    if (o.isMesh) o.castShadow = true;
+  });
+  tenderiserDisplay.add(shown);
+
+  // a pedestal glow, so it reads as "for sale" rather than "left lying there"
+  const glow = new THREE.PointLight(0xffd9a0, 1.1, 4.5, 2);
+  glow.position.y = -0.25;
+  tenderiserDisplay.add(glow);
+  tenderiserDisplay.userData.glow = glow;
+
+  const seat = world.stations?.[0] ?? new THREE.Vector3(-1.6, 1.53, 0);
+  tenderiserDisplay.position.set(seat.x, seat.y + 0.76, seat.z);
+  tenderiserDisplay.userData.baseY = tenderiserDisplay.position.y;
+  engine.scene.add(tenderiserDisplay);
+}
+let displayT = 0;
+const shellBar = document.getElementById("shellBar");
+const shellPips = shellBar.querySelector(".shellPips");
+const shellHint = shellBar.querySelector(".shellHint");
+const bossBar = document.getElementById("bossBar");
+const bossFill = bossBar.querySelector(".bossFill");
+const bossChip = bossBar.querySelector(".bossChip");
+const bossHpNum = document.getElementById("bossHpNum");
+const hurtEl = document.getElementById("hurt");
 
 let hurtT = 0;
-boss.onDamagePlayer = (amount, kind) => {
+function damagePlayer(amount, kind) {
   if (state.health <= 0) return;
   state.health = Math.max(0, state.health - amount / 100);
   hurtT = 0.45;
-  hurtEl.classList.add('flash');
+  hurtEl.classList.add("flash");
   sfx.playerHurt();
-  hud.say(kind === 'slam' ? 'SLAMMED' : 'YOLKED', 'bad', 0.9);
+  hud.say(kind === "slam" ? "SLAMMED" : "YOLKED", "bad", 0.9);
   if (state.health <= 0) {
-    state.health = 1;                       // §3.4 — death is embarrassing, not punishing
+    state.health = 1; // §3.4 — death is embarrassing, not punishing
     state.coins = Math.floor(state.coins * 0.8);
     player.pos.set(0, 1.65, 9);
-    hud.say('You woke up back at the table.', 'bad', 2.4);
+    hud.say("You woke up back at the table.", "bad", 2.4);
   }
+}
+
+boss.onDamagePlayer = damagePlayer;
+chickens.onDamage = damagePlayer;
+
+// The chickens are the boss's, but the boss cannot see the herd — main owns it.
+boss.onThrowChicken = (origin, target) => chickens.spawn(origin, target);
+boss.onPhaseTwo = () => {
+  hud.say("IT IS THROWING CHICKENS", "bad", 3.0);
+};
+
+boss.onSummon = () => {
+  music.play("boss");
 };
 
 boss.onDeath = () => {
   state.coins += 5000;
-  hud.say('THE SOVEREIGN IS BREAKFAST  +5000c', 'good', 4);
-  bossBar.classList.remove('show');
+  state.proteinShake += 1;
+  music.play("game"); // the meadow gets its own music back
+  hud.say("THE SOVEREIGN IS BREAKFAST  +5000c", "good", 4);
+  // The reward for the fight. What it is FOR is not decided yet; it exists,
+  // it is counted, and it survives in the save state.
+  setTimeout(
+    () => hud.say("PROTEIN SHAKE acquired", "good", 4),
+    1600,
+  );
+  bossBar.classList.remove("show");
+  document.getElementById("shakeSlot")?.classList.remove("locked");
 };
 
 // ── spawning ─────────────────────────────────────────────────────────────────
@@ -157,7 +279,7 @@ function populate() {
     spawn(key, Math.cos(a) * d, Math.sin(a) * d);
   }
   // One Black Rabbit so its circling behaviour can be evaluated. §13
-  spawn('black', 18, -18);
+  spawn("black", 18, -18);
 }
 populate();
 
@@ -166,10 +288,13 @@ populate();
 
 glove.onGrab = (radius, origin, dir) => {
   // punching an egg the size of a barn is a valid, if unwise, strategy
-  if (boss.alive && boss.awake &&
-      boss.root.position.distanceTo(origin) < BOSS.bodyRadius + radius + 1.2) {
+  if (
+    boss.alive &&
+    boss.awake &&
+    boss.root.position.distanceTo(origin) < BOSS.bodyRadius + radius + 1.2
+  ) {
     boss.hit(BOSS.gloveDamage, origin);
-    hud.say(`${BOSS.gloveDamage}`, 'bad', 0.5);
+    hud.say(`${BOSS.gloveDamage}`, "bad", 0.5);
     return null;
   }
 
@@ -177,14 +302,15 @@ glove.onGrab = (radius, origin, dir) => {
   // height. A rabbit sits on the ground; measuring a 3D cone from the chest put
   // every rabbit ~63 degrees below the aim axis and rejected nearly all of them.
   const flat = new THREE.Vector3(dir.x, 0, dir.z).normalize();
-  let best = null, bestD = Infinity;
+  let best = null,
+    bestD = Infinity;
 
   for (const r of rabbits) {
     if (!r.alive || r.caught) continue;
 
     const dx = r.position.x - origin.x;
     const dz = r.position.z - origin.z;
-    const dy = (r.position.y + GRAB_BODY_Y) - origin.y;
+    const dy = r.position.y + GRAB_BODY_Y - origin.y;
 
     const flatDist = Math.hypot(dx, dz);
     if (flatDist > radius + GRAB_BONUS) continue;
@@ -192,12 +318,16 @@ glove.onGrab = (radius, origin, dir) => {
 
     // still has to be roughly in front of you
     if (flatDist > 0.05) {
-      const hAng = Math.acos(THREE.MathUtils.clamp(
-        (flat.x * dx + flat.z * dz) / flatDist, -1, 1));
+      const hAng = Math.acos(
+        THREE.MathUtils.clamp((flat.x * dx + flat.z * dz) / flatDist, -1, 1),
+      );
       if (hAng > LUNGE.coneH / 2) continue;
     }
 
-    if (flatDist < bestD) { bestD = flatDist; best = r; }
+    if (flatDist < bestD) {
+      bestD = flatDist;
+      best = r;
+    }
   }
 
   if (!best) return null;
@@ -212,25 +342,110 @@ glove.onGrab = (radius, origin, dir) => {
   state.caught++;
 
   sfx.coin();
-  if (clutch) { sfx.clutch(); hud.say(`CLUTCH GRAB  +${value}c`, 'good', 1.6); }
-  else hud.say(`${best.type.name}  +${value}c`, 'good');
+  if (clutch) {
+    sfx.clutch();
+    hud.say(`CLUTCH GRAB  +${value}c`, "good", 1.6);
+  } else hud.say(`${best.type.name}  +${value}c`, "good");
 
   return best;
 };
 
 // ── the hammer: the only thing the shell answers to ──
 hammer.onImpact = (origin, dir) => {
-  if (boss.alive && boss.root.position.distanceTo(origin) < BOSS.bodyRadius + HAMMER.range) {
+  if (
+    boss.alive &&
+    boss.root.position.distanceTo(origin) < BOSS.bodyRadius + HAMMER.range
+  ) {
     const r = boss.hammer();
-    if (r === 'shell') {
-      hud.say(`CRACK  —  ${boss.shell} to go`, 'good', 1.1);
-    } else if (typeof r === 'number' && r > 0) {
-      hud.say(`${Math.round(r)}`, 'good', 0.5);
+    if (r === "shell") {
+      hud.say(`CRACK  —  ${boss.shell} to go`, "good", 1.1);
+    } else if (typeof r === "number" && r > 0) {
+      hud.say(`${Math.round(r)}`, "good", 0.5);
     }
     return;
   }
+  // a chicken in swing range is a chicken no longer
+  for (const c of chickens.list) {
+    if (c.state === "DEAD") continue;
+    if (c.obj.position.distanceTo(origin) < HAMMER.range) {
+      chickens.kill(c);
+      return;
+    }
+  }
+
   // swung at nothing; the noise still carries
   for (const rb of rabbits) rb.scare(origin, 14, player);
+};
+
+// ── the toothbrush ──
+// Kills at arm's length, keeps most of the meat, and barely makes a sound.
+brush.onImpact = (origin, dir) => {
+  // chickens first — one flick and they are feathers
+  for (const c of chickens.list) {
+    if (c.state === "DEAD") continue;
+    if (c.obj.position.distanceTo(origin) < BRUSH.range) {
+      chickens.kill(c);
+      return;
+    }
+  }
+
+  if (
+    boss.alive &&
+    boss.awake &&
+    boss.root.position.distanceTo(origin) < BOSS.bodyRadius + BRUSH.range
+  ) {
+    boss.hit(BRUSH.bossDamage, origin);
+    hud.say(`${BRUSH.bossDamage}`, "bad", 0.5);
+    return;
+  }
+
+  // nearest rabbit inside a short forward arc
+  const flat = new THREE.Vector3(dir.x, 0, dir.z).normalize();
+  let best = null,
+    bestD = Infinity;
+  for (const r of rabbits) {
+    if (!r.alive || r.caught) continue;
+    const dx = r.position.x - origin.x;
+    const dz = r.position.z - origin.z;
+    const dy = r.position.y + GRAB_BODY_Y - origin.y;
+    const flatDist = Math.hypot(dx, dz);
+    if (flatDist > BRUSH.range) continue;
+    if (Math.abs(dy) > GRAB_VERTICAL) continue;
+    if (flatDist > 0.05) {
+      const hAng = Math.acos(
+        THREE.MathUtils.clamp((flat.x * dx + flat.z * dz) / flatDist, -1, 1),
+      );
+      if (hAng > BRUSH.arc / 2) continue;
+    }
+    if (flatDist < bestD) {
+      bestD = flatDist;
+      best = r;
+    }
+  }
+
+  if (!best) {
+    // Almost nothing hears it. That is the toothbrush's whole advantage.
+    for (const r of rabbits) r.scare(origin, BRUSH.scareRadius, player, { silent: true });
+    return;
+  }
+
+  const value = Math.round(best.type.value * BRUSH.meatKeep);
+  const where = best.position.clone();
+  impacts.add(where.clone().setY(where.y + GRAB_BODY_Y), dir.clone().negate(), "flesh");
+  best.shoot();
+  state.shot++;
+
+  const cut = best.type.meat ?? {
+    scale: 1,
+    color: 0xb8241c,
+    fat: 0xf0c08a,
+    label: `${best.type.name} cut`,
+  };
+  meat.drop(where, { ...cut, value });
+  hud.say(`${best.type.name} — brushed. Collect the meat`, "good", 1.5);
+
+  // a quiet kill still startles what is right next to it
+  for (const r of rabbits) r.scare(origin, BRUSH.scareRadius, player, { silent: true });
 };
 
 // A whiffed lunge sends everything nearby bolting. §4.1
@@ -243,46 +458,103 @@ glove.onScare = (origin, radius) => {
 // deliberately unrewarding to use: shot meat is ruined. §GUN
 
 // Grab tuning — see glove.onGrab
-const GRAB_BODY_Y = 0.28;      // rabbit body centre above the ground
-const GRAB_VERTICAL = 1.6;     // how far up/down the reach forgives
-const GRAB_BONUS = 0.9;        // flat extra reach on top of the charge radius
+const GRAB_BODY_Y = 0.28; // rabbit body centre above the ground
+const GRAB_VERTICAL = 1.6; // how far up/down the reach forgives
+const GRAB_BONUS = 0.9; // flat extra reach on top of the charge radius
 
 const _seg = new THREE.Vector3();
 // Generous on purpose. The gun is supposed to be the EASY option — its cost is
 // the ruined meat and the emptied field, not a demanding shot.
 const HIT_RADIUS = 0.55;
-const BODY_OFFSET = 0.26;    // aim point sits at the carriage, not the feet
+const BODY_OFFSET = 0.26; // aim point sits at the carriage, not the feet
+
+// Where a missed shot actually lands. Raycast the real scene so a mark ends up
+// on the tree or the rock you hit, not floating at max range — the ground plane
+// alone left every shot at a standing target unmarked.
+const _rc = new THREE.Raycaster();
+const _n = new THREE.Vector3();
+function markMiss(origin, dir) {
+  _rc.set(origin, dir);
+  _rc.far = GUN.range;
+  const hits = _rc.intersectObjects(engine.scene.children, true);
+  for (const h of hits) {
+    if (!h.face) continue; // skip anything without a surface to stick to
+    _n.copy(h.face.normal)
+      .transformDirection(h.object.matrixWorld)
+      .normalize();
+    // a back-facing hit means we went through the inside of something
+    if (_n.dot(dir) > 0) _n.negate();
+    impacts.add(h.point, _n, "world");
+    return;
+  }
+}
 
 gun.onShoot = (origin, dir) => {
   // the boss is enormous and takes priority over anything behind it
   const bossHit = boss.raycast(origin, dir, GUN.range);
   if (bossHit) {
     const dealt = boss.hit(BOSS.gunDamage, bossHit);
-    hud.say(`${Math.round(dealt)}`, dealt > BOSS.gunDamage ? 'good' : 'bad', 0.5);
+    impacts.add(bossHit, dir.clone().negate(), boss.sealed ? "world" : "yolk");
+    hud.say(
+      `${Math.round(dealt)}`,
+      dealt > BOSS.gunDamage ? "good" : "bad",
+      0.5,
+    );
     return null;
   }
 
-  let best = null, bestT = Infinity;
+  // chickens next — they are between you and everything else by design
+  const chick = chickens.raycast(origin, dir, GUN.range);
+  if (chick) {
+    impacts.add(chick.point, dir.clone().negate(), "flesh");
+    chickens.kill(chick.chicken);
+    return null;
+  }
+
+  let best = null,
+    bestT = Infinity;
 
   for (const r of rabbits) {
     if (!r.alive || r.caught) continue;
     // aim at the body, not the ground point the origin sits on
-    _seg.copy(r.position).setY(r.position.y + BODY_OFFSET).sub(origin);
+    _seg
+      .copy(r.position)
+      .setY(r.position.y + BODY_OFFSET)
+      .sub(origin);
     const along = _seg.dot(dir);
     if (along < 0 || along > GUN.range) continue;
     const perp = Math.sqrt(Math.max(0, _seg.lengthSq() - along * along));
     if (perp > HIT_RADIUS) continue;
-    if (along < bestT) { bestT = along; best = r; }
+    if (along < bestT) {
+      bestT = along;
+      best = r;
+    }
   }
 
-  if (!best) return null;
+  if (!best) {
+    markMiss(origin, dir);
+    return null;
+  }
 
   const value = Math.round(best.type.value * GUN.meatPenalty);
+  const hitPoint = origin.clone().addScaledVector(dir, bestT);
+  impacts.add(hitPoint, dir.clone().negate(), "flesh");
+
+  const where = best.position.clone();
   best.shoot();
-  state.coins += value;
   state.shot++;
 
-  hud.say(`${best.type.name} — RUINED MEAT  +${value}c`, 'bad', 1.5);
+  // NOT paid here. The meat lands where the rabbit did and you have to go and
+  // get it — which means walking into the 40m of field your own shot emptied.
+  const cut = best.type.meat ?? {
+    scale: 1,
+    color: 0xb8241c,
+    fat: 0xf0c08a,
+    label: `${best.type.name} cut`,
+  };
+  meat.drop(where, { ...cut, value });
+
+  hud.say(`${best.type.name} down — collect the meat`, "bad", 1.6);
   return best;
 };
 
@@ -298,21 +570,23 @@ let blackNear = 0;
 function updateBlackRabbit(dt) {
   let nearest = Infinity;
   for (const r of rabbits) {
-    if (r.alive && r.type.circler) nearest = Math.min(nearest, r.position.distanceTo(player.pos));
+    if (r.alive && r.type.circler)
+      nearest = Math.min(nearest, r.position.distanceTo(player.pos));
   }
   const target = nearest < 15 ? 1 - nearest / 15 : 0;
   blackNear += (target - blackNear) * Math.min(1, 3 * dt);
 
   if (audio.ready) {
-    audio.duck('voice', 1 - blackNear * 0.75);
-    audio.duck('world', 1 - blackNear * 0.5);
+    audio.duck("voice", 1 - blackNear * 0.75);
+    audio.duck("world", 1 - blackNear * 0.5);
   }
   // desaturate the fog toward grey as it closes
   const f = engine.scene.fog;
   f.color.setRGB(
     THREE.MathUtils.lerp(0.784, 0.42, blackNear),
     THREE.MathUtils.lerp(0.894, 0.42, blackNear),
-    THREE.MathUtils.lerp(0.949, 0.46, blackNear));
+    THREE.MathUtils.lerp(0.949, 0.46, blackNear),
+  );
   engine.scene.background.copy(f.color);
 }
 
@@ -326,21 +600,40 @@ const POPULATION = 16;
 function step(dt) {
   if (input.locked) {
     player.look(input.mouseDX, input.mouseDY, input.sensitivity);
-    player.update(dt, input);
 
-    if (input.hit('slot1')) swapTo('glove');
-    if (input.hit('slot2')) swapTo('gun');
-    if (input.hit('swapWeapon')) {
-      const order = hammer.owned ? ['glove', 'gun', 'hammer'] : ['glove', 'gun'];
+    // Mounted, the horse moves and the player is a passenger — Controller.update
+    // is skipped entirely rather than fought with.
+    if (horses.riding) {
+      horses.updateRide(dt, input, player);
+    } else {
+      player.update(dt, input);
+    }
+
+    if (input.hit("slot1")) swapTo("glove");
+    if (input.hit("slot2")) swapTo("gun");
+    if (input.hit("slot3")) swapTo("hammer");
+    if (input.hit("slot4")) swapTo("brush");
+    if (input.hit("swapWeapon")) {
+      const order = hammer.owned
+        ? ["glove", "gun", "hammer", "brush"]
+        : ["glove", "gun", "brush"];
       swapTo(order[(order.indexOf(weapon) + 1) % order.length]);
     }
 
-    if (input.hit('slot3')) swapTo('hammer');
-
-    if (weapon === 'glove') glove.update(dt, input);
-    gun.update(dt, input, weapon === 'gun');
-    hammer.update(dt, input, weapon === 'hammer');
-    glove.root.visible = weapon === 'glove';
+    // Both hands are on the mane: while mounted the weapons are not updated at
+    // all, and every viewmodel is hidden.
+    if (horses.riding) {
+      glove.root.visible = false;
+      gun.root.visible = false;
+      hammer.root.visible = false;
+      brush.root.visible = false;
+    } else {
+      if (weapon === "glove") glove.update(dt, input);
+      gun.update(dt, input, weapon === "gun");
+      hammer.update(dt, input, weapon === "hammer");
+      brush.update(dt, input, weapon === "brush");
+      glove.root.visible = weapon === "glove";
+    }
   }
 
   for (const r of rabbits) r.update(dt, player);
@@ -372,13 +665,49 @@ function step(dt) {
     r.lure = c ? c.target : null;
   }
 
-  if (input.hit('dropCarrot') && state.carrots > 0) {
+  // ── drink a shake, wherever you are ──
+  // Deliberately usable mid-fight: that is what you paid the 150c for.
+  if (input.hit("useHeal")) {
+    if (state.healKits <= 0) {
+      sfx.deny();
+      hud.say(`No shakes — ${HEAL.itemPrice}c at the booth`, "bad");
+    } else if (state.health >= 1) {
+      sfx.deny();
+      hud.say("Already at full health", "bad");
+    } else {
+      state.healKits--;
+      state.health = Math.min(1, state.health + HEAL.itemHeal);
+      sfx.heal?.();
+      hud.say(`Shake — ${state.healKits} left`, "good", 1.4);
+    }
+  }
+
+  if (input.hit("dropCarrot") && state.carrots > 0) {
     state.carrots--;
     carrots.drop(player.pos, player.flatForward);
-    hud.say(`Carrot dropped — ${state.carrots} left`, 'good', 1.0);
-  } else if (input.hit('dropCarrot')) {
+    hud.say(`Carrot dropped — ${state.carrots} left`, "good", 1.0);
+  } else if (input.hit("dropCarrot")) {
     sfx.deny();
-    hud.say(`No carrots — ${CARROT.price}c from the hamster`, 'bad');
+    hud.say(`No carrots — ${CARROT.price}c from the hamster`, "bad");
+  }
+
+  horses.update(dt);
+  healing.update(dt);
+  impacts.update(dt);
+  meat.update(dt, player.pos);
+  chickens.update(dt, player);
+
+  // ── the Tenderiser turning over station 1 ──
+  if (hammer.owned) {
+    tenderiserDisplay.visible = false;
+  } else {
+    displayT += dt;
+    tenderiserDisplay.visible = true;
+    tenderiserDisplay.rotation.y = displayT * 0.7;          // slow full turn
+    tenderiserDisplay.position.y =
+      tenderiserDisplay.userData.baseY + Math.sin(displayT * 1.5) * 0.07;
+    tenderiserDisplay.userData.glow.intensity =
+      1.0 + Math.sin(displayT * 2.2) * 0.35;
   }
 
   updateBlackRabbit(dt);
@@ -386,54 +715,127 @@ function step(dt) {
   // ── boss ──
   if (boss.alive) {
     boss.update(dt, player);
-    bossBar.classList.toggle('show', boss.awake && boss.state !== 'DEAD');
+    bossBar.classList.toggle("show", boss.awake && boss.state !== "DEAD");
     const pct = boss.healthRatio * 100;
-    bossFill.style.width = pct + '%';
-    bossChip.style.width = pct + '%';
+    bossFill.style.width = pct + "%";
+    bossChip.style.width = pct + "%";
     bossHpNum.textContent = Math.ceil(boss.health);
   }
 
   if (hurtT > 0) {
     hurtT -= dt;
-    if (hurtT <= 0) hurtEl.classList.remove('flash');
+    if (hurtT <= 0) hurtEl.classList.remove("flash");
   }
 
-  // ── the hamster: carrots at 5c ──
-  const atTrader = !reel.visible && carrots.canTrade(player.pos);
-  if (atTrader) {
-    const afford = state.coins >= CARROT.price;
-    promptEl.className = 'show' + (afford ? '' : ' cant');
-    promptEl.innerHTML = `<kbd>E</kbd>Buy a carrot &nbsp;<span class="cost">${CARROT.price}c</span>` +
-      `&nbsp; <span style="opacity:.5">— drop with G</span>`;
-    if (input.hit('interact')) {
-      if (afford) {
-        state.coins -= CARROT.price;
-        state.carrots++;
+  // ── the horses ──
+  // First in the prompt chain: if you are close enough to touch a horse, that
+  // is what E means, whatever else is nearby.
+  const nearHorse =
+    !reel.visible && !horses.riding ? horses.mountable(player.pos) : null;
+
+  if (horses.riding) {
+    promptEl.className = "show";
+    promptEl.innerHTML =
+      `<span class="cost">${horses.secondsLeft.toFixed(1)}s</span>` +
+      `&nbsp; <span style="opacity:.6">— hold on</span>`;
+  } else if (nearHorse) {
+    promptEl.className = "show";
+    promptEl.innerHTML =
+      `<kbd>E</kbd>Ride the horse` +
+      `&nbsp; <span style="opacity:.5">— ${HORSE.rideTime}s, then it throws you</span>`;
+    if (input.hit("interact") && horses.mount(nearHorse, player)) {
+      hud.say("HOLD ON", "good", 1.3);
+    }
+  }
+  const horsePrompt = horses.riding || !!nearHorse;
+
+  // ── the healing booth ── 300c to be patched up, 150c to carry one
+  const atHealing =
+    !reel.visible && !horsePrompt && healing.canUse(player.pos);
+  if (atHealing) {
+    const hurtNow = state.health < 1;
+    const canFull = state.coins >= HEAL.fullPrice && hurtNow;
+    const canBuy =
+      state.coins >= HEAL.itemPrice && state.healKits < HEAL.maxCarried;
+    promptEl.className = "show" + (canFull || canBuy ? "" : " cant");
+    promptEl.innerHTML =
+      `<kbd>E</kbd>Full health <span class="cost">${HEAL.fullPrice}c</span>` +
+      `&nbsp;·&nbsp; <kbd>B</kbd>Buy a shake <span class="cost">${HEAL.itemPrice}c</span>` +
+      `&nbsp; <span style="opacity:.5">— carried ${state.healKits}/${HEAL.maxCarried}, drink with H</span>`;
+
+    if (input.hit("interact")) {
+      if (!hurtNow) {
+        sfx.deny();
+        hud.say("Nothing to patch up", "bad");
+      } else if (state.coins >= HEAL.fullPrice) {
+        state.coins -= HEAL.fullPrice;
         sfx.purchase();
-        hud.say(`Carrot × ${state.carrots} — press G to drop`, 'good', 1.6);
+        healToFull();
       } else {
         sfx.deny();
-        hud.say('Not enough coins', 'bad');
+        hud.say(`You need ${HEAL.fullPrice - state.coins}c more`, "bad");
+      }
+    }
+
+    if (input.hit("buyHeal")) {
+      if (state.healKits >= HEAL.maxCarried) {
+        sfx.deny();
+        hud.say(`You can only carry ${HEAL.maxCarried}`, "bad");
+      } else if (state.coins >= HEAL.itemPrice) {
+        state.coins -= HEAL.itemPrice;
+        state.healKits++;
+        sfx.purchase();
+        hud.say(`Shake × ${state.healKits} — drink with H`, "good", 1.8);
+      } else {
+        sfx.deny();
+        hud.say(`You need ${HEAL.itemPrice - state.coins}c more`, "bad");
       }
     }
   }
 
-  // ── the table: buy the Tenderiser ── 2000c
-  const atTable = !reel.visible && !atTrader && player.pos.distanceTo(TABLE_POS) < 3.4;
+  // ── the hamster: carrots at 5c ──
+  const atTrader =
+    !reel.visible && !horsePrompt && !atHealing && carrots.canTrade(player.pos);
+  if (atTrader) {
+    const afford = state.coins >= CARROT.price;
+    promptEl.className = "show" + (afford ? "" : " cant");
+    promptEl.innerHTML =
+      `<kbd>E</kbd>Buy a carrot &nbsp;<span class="cost">${CARROT.price}c</span>` +
+      `&nbsp; <span style="opacity:.5">— drop with G</span>`;
+    if (input.hit("interact")) {
+      if (afford) {
+        state.coins -= CARROT.price;
+        state.carrots++;
+        sfx.purchase();
+        hud.say(`Carrot × ${state.carrots} — press G to drop`, "good", 1.6);
+      } else {
+        sfx.deny();
+        hud.say("Not enough coins", "bad");
+      }
+    }
+  }
+
+  // ── the table: buy the Tenderiser ── 1000c
+  const atTable =
+    !reel.visible &&
+    !horsePrompt &&
+    !atHealing &&
+    !atTrader &&
+    player.pos.distanceTo(TABLE_POS) < 3.4;
   if (atTable && !hammer.owned) {
     const afford = state.coins >= HAMMER.price;
-    promptEl.className = 'show' + (afford ? '' : ' cant');
+    promptEl.className = "show" + (afford ? "" : " cant");
     promptEl.innerHTML = `<kbd>E</kbd>Buy THE TENDERISER &nbsp;<span class="cost">${HAMMER.price}c</span>`;
-    if (input.hit('interact')) {
+    if (input.hit("interact")) {
       if (afford) {
         state.coins -= HAMMER.price;
         hammer.owned = true;
         sfx.purchase();
-        hud.say('THE TENDERISER — press 3', 'good', 2.6);
-        document.getElementById('hammerSlot').classList.remove('locked');
+        hud.say("THE TENDERISER — press 3", "good", 2.6);
+        document.getElementById("hammerSlot").classList.remove("locked");
       } else {
         sfx.deny();
-        hud.say(`You need ${HAMMER.price - state.coins}c more`, 'bad');
+        hud.say(`You need ${HAMMER.price - state.coins}c more`, "bad");
       }
     }
   }
@@ -441,30 +843,36 @@ function step(dt) {
   // ── the sealed egg ──
   if (boss.alive && boss.sealed) {
     const nearEgg = player.pos.distanceTo(boss.root.position) < 16;
-    shellBar.classList.toggle('show', nearEgg);
+    shellBar.classList.toggle("show", nearEgg);
     if (nearEgg && shellPips.childElementCount !== BOSS.shellHits) {
-      shellPips.innerHTML = '<i></i>'.repeat(BOSS.shellHits);
+      shellPips.innerHTML = "<i></i>".repeat(BOSS.shellHits);
     }
     if (nearEgg) {
-      [...shellPips.children].forEach((pip, i) => pip.classList.toggle('gone', i >= boss.shell));
+      [...shellPips.children].forEach((pip, i) =>
+        pip.classList.toggle("gone", i >= boss.shell),
+      );
       shellHint.textContent = hammer.owned
-        ? 'Press 3, then swing.'
+        ? "Press 3, then swing."
         : `Only the Tenderiser will crack this. ${HAMMER.price}c at the table.`;
     }
   } else {
-    shellBar.classList.remove('show');
+    shellBar.classList.remove("show");
   }
 
   // ── chest interaction ──
-  const canUse = !reel.visible && chest.canUse(player.pos, player.forward);
+  const canUse =
+    !reel.visible &&
+    !horsePrompt &&
+    !atHealing &&
+    chest.canUse(player.pos, player.forward);
   chest.update(dt, canUse);
   pickups.update(dt, player.pos);
 
   if (canUse && !atTable && !atTrader) {
     const afford = state.coins >= CASE_COST;
-    promptEl.className = 'show' + (afford ? '' : ' cant');
+    promptEl.className = "show" + (afford ? "" : " cant");
     promptEl.innerHTML = `<kbd>E</kbd>Open a case &nbsp;<span class="cost">${CASE_COST}c</span>`;
-    if (input.hit('interact')) {
+    if (input.hit("interact")) {
       if (afford) {
         state.coins -= CASE_COST;
         chest.pop();
@@ -473,25 +881,36 @@ function step(dt) {
         reel.open();
       } else {
         sfx.deny();
-        hud.say('Not enough coins', 'bad');
+        hud.say("Not enough coins", "bad");
       }
     }
-  } else if (!atTrader && (!atTable || hammer.owned)) {
-    promptEl.className = '';
+  } else if (
+    !atTrader &&
+    !atHealing &&
+    !horsePrompt &&
+    (!atTable || hammer.owned)
+  ) {
+    promptEl.className = "";
   }
 
   // out-of-breath cue
   if (player.stamina.exhausted) {
     gaspT -= dt;
-    if (gaspT <= 0) { sfx.gasp(); gaspT = 1.1; }
+    if (gaspT <= 0) {
+      sfx.gasp();
+      gaspT = 1.1;
+    }
   } else gaspT = 0;
   wasExhausted = player.stamina.exhausted;
 
   // FOV pulls in while winding up, pushes out while sprinting
-  const wantFov = MOVE.fovBase
-    + (player.sprinting ? (MOVE.fovSprint - MOVE.fovBase) : 0)
-    + (glove.charging ? LUNGE.fovPull * glove.charge : 0);
-  engine.setFov(THREE.MathUtils.lerp(engine.camera.fov, wantFov, 1 - Math.exp(-9 * dt)));
+  const wantFov =
+    MOVE.fovBase +
+    (player.sprinting ? MOVE.fovSprint - MOVE.fovBase : 0) +
+    (glove.charging ? LUNGE.fovPull * glove.charge : 0);
+  engine.setFov(
+    THREE.MathUtils.lerp(engine.camera.fov, wantFov, 1 - Math.exp(-9 * dt)),
+  );
 
   input.endStep();
 }
@@ -512,6 +931,7 @@ function frame() {
     health: state.health,
     coins: state.coins,
     carrots: state.carrots,
+    healKits: state.healKits,
     weapon,
     ammo: gun.ammo,
     reserve: gun.reserve,
@@ -522,22 +942,27 @@ function frame() {
   if (dbgT <= 0) {
     dbgT = 0.12;
     const near = rabbits
-      .map(r => ({ r, d: r.position.distanceTo(player.pos) }))
+      .map((r) => ({ r, d: r.position.distanceTo(player.pos) }))
       .sort((a, b) => a.d - b.d)[0];
     hud.setDebug(
-`spd    ${player.speed2D.toFixed(2)} m/s   ${player.sprinting ? 'SPRINT' : player.crouching ? 'CROUCH' : 'walk'}
-stam   ${player.stamina.value.toFixed(0)}${player.stamina.exhausted ? '  EXHAUSTED' : ''}
+      `spd    ${player.speed2D.toFixed(2)} m/s   ${player.sprinting ? "SPRINT" : player.crouching ? "CROUCH" : "walk"}
+stam   ${player.stamina.value.toFixed(0)}${player.stamina.exhausted ? "  EXHAUSTED" : ""}
 bob    y${player.bob.y.toFixed(3)} x${player.bob.x.toFixed(3)} ph${player.bob.phase.toFixed(1)}
-glove  ${['IDLE','WIND','DASH','RECOVER'][glove.state]}  chg ${glove.charge.toFixed(2)}
+glove  ${["IDLE", "WIND", "DASH", "RECOVER"][glove.state]}  chg ${glove.charge.toFixed(2)}
 noise  ${player.noiseRadius}m
 coins  ${state.coins}   hidden left ${pickups.remaining}   skins ${state.skins.length}
-carrot ${state.carrots} held, ${carrots.active.length} down   lured ${rabbits.filter(r => r.lure).length}
-weapon ${weapon}  ammo ${gun.ammo}/${gun.reserve}${gun.reloading > 0 ? ' RELOADING' : ''}
+carrot ${state.carrots} held, ${carrots.active.length} down   lured ${rabbits.filter((r) => r.lure).length}
+weapon ${weapon}  ammo ${gun.ammo}/${gun.reserve}${gun.reloading > 0 ? " RELOADING" : ""}
 caught ${state.caught}  shot ${state.shot}  coins ${state.coins}  rabbits ${rabbits.length}
-near   ${near ? `${near.r.type.name} ${near.d.toFixed(1)}m ${near.r.state} p${near.r.gait.phase.toFixed(2)}${near.r.gait.airborne ? ' AIR' : ''}` : '-'}
+near   ${near ? `${near.r.type.name} ${near.d.toFixed(1)}m ${near.r.state} p${near.r.gait.phase.toFixed(2)}${near.r.gait.airborne ? " AIR" : ""}` : "-"}
 black  ${blackNear.toFixed(2)}
-boss   ${boss.alive ? `${boss.state} shell ${boss.shell} hp ${Math.ceil(boss.health)} rage ${boss.rage.toFixed(2)}` : 'DEAD'}
-hammer ${hammer.owned ? 'OWNED' : 'not bought'}`);
+boss   ${boss.alive ? `${boss.state} shell ${boss.shell} hp ${Math.ceil(boss.health)} rage ${boss.rage.toFixed(2)}` : "DEAD"}
+hammer ${hammer.owned ? "OWNED" : "not bought"}
+horse  ${horses.riding ? `RIDING ${horses.secondsLeft.toFixed(1)}s` : horses.list.map((h) => h.state[0]).join("")}
+chick  ${chickens.liveCount} live   meat ${meat.pending} on the ground   marks ${impacts.live.length}
+music  ${music.current ?? "-"}   shake ${state.proteinShake}
+heal   ${(state.health * 100).toFixed(0)}%   kits ${state.healKits}   weapon4 ${brush.owned ? "toothbrush" : "-"}`,
+    );
   }
 
   engine.render();
@@ -555,38 +980,51 @@ function applySettings(v) {
   MOVE.fovSprint = v.fov + 7;
   audio.setMasterVolume(v.masterVolume);
   audio.setSfxVolume(v.sfxVolume);
+  music.setVolume(v.musicVolume);
 }
 settings.onChange = applySettings;
 applySettings(settings.values);
 
+// dev tool — skip the grind when testing the shops
+settings.onDevCoins = (n) => {
+  state.coins += n;
+  sfx.coin();
+  hud.say(`DEV  +${n}c`, "good", 2.0);
+};
+
 // ── start gate ───────────────────────────────────────────────────────────────
 
-const gate = document.getElementById('gate');
+const gate = document.getElementById("gate");
 
 async function enterGame() {
   audio.start();
-  applySettings(settings.values);       // volumes need a live AudioContext
+  music.build(); // needs a live AudioContext, so not before now
+  applySettings(settings.values); // volumes need a live AudioContext
   settings.close();
+  // The meadow track, unless the Sovereign is already out.
+  music.play(boss.alive && boss.awake ? "boss" : "game");
 
   const ok = await input.lock();
   if (ok) {
-    gate.classList.add('hidden');
+    gate.classList.add("hidden");
   } else {
     // The browser refused (usually a cooldown right after Esc). Show the gate
     // so there is always something clickable rather than a frozen screen.
-    gate.classList.remove('hidden');
+    gate.classList.remove("hidden");
   }
 }
 
 // Resuming from the settings menu is the same path as pressing play.
 settings.onResume = enterGame;
 
-document.getElementById('startBtn').addEventListener('click', enterGame);
-document.getElementById('settingsBtn')?.addEventListener('click', () => settings.open());
+document.getElementById("startBtn").addEventListener("click", enterGame);
+document
+  .getElementById("settingsBtn")
+  ?.addEventListener("click", () => settings.open());
 
 // Clicking the world re-locks. Without this, any stray Esc drops you into a
 // state where the keys look broken because movement is gated on pointer lock.
-canvas.addEventListener('click', () => {
+canvas.addEventListener("click", () => {
   if (!input.locked && !settings.visible && !reel.visible) enterGame();
 });
 
@@ -598,8 +1036,38 @@ input.onUnlock = () => {
 input.onToggleDebug = () => hud.toggleDebug();
 
 // Dev handle — lets tooling drive the camera without pointer lock.
-window.GAME = { engine, player, glove, gun, rabbits, world, state, hud, input, spawn, THREE, settings,
-                chest, reel, pickups, boss, hammer, carrots,
-                get weapon(){ return weapon; }, swapTo };
+window.GAME = {
+  engine,
+  audio,
+  sfx,
+  player,
+  glove,
+  gun,
+  rabbits,
+  world,
+  state,
+  hud,
+  input,
+  spawn,
+  THREE,
+  settings,
+  chest,
+  reel,
+  pickups,
+  boss,
+  hammer,
+  carrots,
+  horses,
+  chickens,
+  meat,
+  healing,
+  brush,
+  impacts,
+  music,
+  get weapon() {
+    return weapon;
+  },
+  swapTo,
+};
 
 frame();

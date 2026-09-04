@@ -58,6 +58,22 @@ export class AudioEngine {
         'shotgun-sfx.mp3',
         'SHOTGUN-SFX.mp3',
       ],
+      fart: [
+        'assets/audio/FART.mp3',
+        'assets/audio/fart.mp3',
+        'FART.mp3',
+        'fart.mp3',
+      ],
+      chickenDie: [
+        'assets/audio/chicken-dying-sound.mp3',
+        'assets/audio/chicken-dying.mp3',
+        'chicken-dying-sound.mp3',
+      ],
+      chicken: [
+        'assets/audio/chicken sounds.mp3',
+        'assets/audio/chicken-sounds.mp3',
+        'chicken sounds.mp3',
+      ],
     };
 
     await Promise.all(Object.entries(files).map(async ([name, candidates]) => {

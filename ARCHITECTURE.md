@@ -175,7 +175,28 @@ animation.
 | `Loaders.js` | Model loading, scale normalisation, graceful failure |
 | `Chest.js` | Case-opening chest beside the table (§9.1) |
 | `Pickups.js` | Hidden coins |
-| `EggBoss.js` | The Sunny-Side Sovereign |
+| `Carrots.js` | The hamster trader, and the carrots that freeze rabbits in place |
+| `Horses.js` | Four wild horses. Mount with E, ride for 4s, get thrown |
+| `EggBoss.js` | The Sunny-Side Sovereign — sealed shell phase and the boss itself |
+
+### Riding
+
+`Horses.updateRide()` is called **instead of** `Controller.update()` while
+mounted (see `step()` in `main.js`). The horse owns the movement; the player is
+written to its saddle position each step and their velocity is zeroed. Weapons
+are neither updated nor drawn while mounted. `Horses.buck()` hands control back
+by calling `player.stumble()` and then launching `player.vel` — in that order,
+since `stumble()` damps whatever velocity it finds.
+
+### The boss's two models
+
+The Sovereign has two meshes and swaps between them exactly once.
+`EggWithShell/model.obj` is the sealed phase you hammer, with procedural crack
+lines that light up one per blow; `_revealSovereign()` hides it, bursts a shower
+of shell shards, and shows `eggSunnysideUp.obj` underneath. That second model
+**must** be loaded with `mtl: true` — without the MTL both of its material
+groups collapse to one default white and the yolk is not yellow. `EggBoss`
+then forces the two colours explicitly by material name.
 
 ### Collision
 
@@ -214,7 +235,7 @@ State machine: `SHELL → SUMMONING → CHASE ⇄ SLAM/SPIT → DYING → DEAD`.
 
 While `SHELL`, it is inert and immune — `hit()` returns 0 and plays a ping. Only
 `hammer()` decrements the shell, and only after the player has bought The
-Tenderiser for 2000 coins at the cooking table. Six blows summon the Sovereign.
+Tenderiser for 1000 coins at the cooking table. Six blows summon the Sovereign.
 Difficulty scales off `rage` (`1 - healthRatio`) rather than discrete phases.
 
 ---

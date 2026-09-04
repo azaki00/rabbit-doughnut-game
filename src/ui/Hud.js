@@ -16,6 +16,9 @@ export class Hud {
     this.carrotCount = document.getElementById('carrotCount');
     this.toast = document.getElementById('toast');
     this.ammo = document.getElementById('ammo');
+    this.brushSlot = document.getElementById('brushSlot');
+    this.kitSlot = document.getElementById('kitSlot');
+    this.kitNum = this.kitSlot?.querySelector('.kitNum');
     this.ammoMag = document.getElementById('ammoMag');
     this.ammoRes = document.getElementById('ammoRes');
     this.gloveSlot = document.getElementById('gloveSlot');
@@ -53,13 +56,22 @@ export class Hud {
 
     // weapon slots + ammo
     const gunOut = s.weapon === 'gun';
-    this.gloveSlot.classList.toggle('active', !gunOut);
+    this.gloveSlot.classList.toggle('active', s.weapon === 'glove');
     this.gunSlot.classList.toggle('active', gunOut);
+    this.brushSlot?.classList.toggle('active', s.weapon === 'brush');
+
+    // carried healing shakes
+    if (this.kitSlot) {
+      this.kitSlot.classList.toggle('locked', !s.healKits);
+      if (this.kitNum) this.kitNum.textContent = s.healKits ?? 0;
+    }
     this.ammo.classList.toggle('show', gunOut);
     this.ammo.classList.toggle('empty', gunOut && s.ammo === 0 && !s.reloading);
     this.ammo.classList.toggle('reloading', !!s.reloading);
-    this.ammoMag.textContent = '∞';
-    this.ammoRes.textContent = 'shells';
+    // Two in the barrels, and an infinite box of them on your belt. The
+    // magazine number matters now (it gates the reload); the reserve never does.
+    this.ammoMag.textContent = s.reloading ? '··' : String(s.ammo);
+    this.ammoRes.textContent = '∞';
 
     if (this._toastT > 0) {
       this._toastT -= dt;

@@ -99,6 +99,22 @@ function prepare(root, { color, roughness = 0.85, flat = true, recolor, brighten
           }
         }
 
+        // FULLY DISSOLVED MATERIALS.
+        // Several of these packs export `d 0.000000` on every material — the
+        // Hamster and the Chicken both do. That is MTL for "100% transparent",
+        // MTLLoader honours it exactly, and the model then loads, scales and
+        // positions perfectly while rendering nothing at all. It cost a long
+        // time to find on the hamster, because every probe reported a correct,
+        // visible, present object.
+        //
+        // Nothing ships an asset intended to be completely invisible, so treat
+        // it as the export bug it is. Partial transparency is left alone.
+        if (m.transparent && m.opacity <= 0.02) {
+          m.opacity = 1;
+          m.transparent = false;
+          m.depthWrite = true;
+        }
+
         m.side = THREE.DoubleSide;
         if (m.map) {
           m.map.colorSpace = THREE.SRGBColorSpace;

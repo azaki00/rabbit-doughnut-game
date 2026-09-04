@@ -64,9 +64,16 @@ export class Carrots {
     scene.add(this.group);
 
     // ── the trader ──
-    this.traderPos = new THREE.Vector3(-4.6, 0, 3.2);
+    // Tucked in BEHIND the timber house rather than out on the green. You have
+    // to walk round the back of it to find him, which is the right shape for a
+    // man selling you a carrot that makes rabbits stand still.
+    this.traderPos = this._behindHouse();
     this.trader = new THREE.Group();
     this.trader.position.copy(this.traderPos);
+    // The stall's front is its +Z side (posts at the back, carrots on the front
+    // of the counter). Turn it to face back toward the meadow, so the moment
+    // you come round the corner of the house you are looking at the counter.
+    this.trader.rotation.y = Math.atan2(-this.traderPos.x, -this.traderPos.z);
     scene.add(this.trader);
 
     this._buildStall();
@@ -79,12 +86,35 @@ export class Carrots {
     this.sign.position.set(0, 1.75, 0);
     this.trader.add(this.sign);
 
-    // and a warm light, so he is findable across the meadow
-    this.glow = new THREE.PointLight(0xffc46b, 1.6, 9, 2);
-    this.glow.position.set(0, 1.5, 0);
+    // A warm light so the stall is findable across the meadow — hung at the
+    // FRONT edge of the awning, not at the middle of the counter. At (0,1.5,0)
+    // it sat inside the hamster: with DoubleSide materials that lit his inner
+    // faces, blew out his middle, and left the outside we actually look at in
+    // shadow. He read as a featureless dark cone.
+    this.glow = new THREE.PointLight(0xffc46b, 1.5, 9, 2);
+    this.glow.position.set(0, 1.95, 0.62);
     this.trader.add(this.glow);
 
     this.bobT = 0;
+    // The model is authored facing -Z; the stall's customer side is +Z, so he
+    // needs turning right round or you get a shopkeeper's back.
+    this.faceYaw = Math.PI;
+  }
+
+  // Behind House_1 — the first of the world's building spots — measured from
+  // the map centre, so if the house moves the stall moves with it.
+  _behindHouse() {
+    const house = this.world.buildingSpots?.[0];
+    if (!house) return new THREE.Vector3(-4.6, 0, 3.2);
+
+    const len = Math.hypot(house.x, house.z) || 1;
+    const ax = house.x / len, az = house.z / len;   // outward, away from centre
+
+    // far enough past the house to leave room to stand at the counter, and
+    // nudged out of anything solid it would otherwise be standing in
+    const p = new THREE.Vector3(house.x + ax * 8.5, 0, house.z + az * 8.5);
+    this.world.resolveHorizontal(p, 2.4);
+    return p;
   }
 
   // A market stall, so the trader is a landmark rather than a small animal
@@ -146,12 +176,18 @@ export class Carrots {
   }
 
   async _loadTrader() {
-    // Big enough to read as a shopkeeper, and stood ON the counter so he is at
-    // eye level instead of hidden in the grass.
-    const m = await loadModel(HAMSTER_URL, { height: 1.15, mtl: true });
+    // Hamster_01.mtl ships `d 0.000000` (fully dissolved) on all four of its
+    // materials, so for a long time he loaded, sized and positioned perfectly
+    // and rendered nothing at all. That is un-dissolved centrally now — see
+    // Loaders.prepare().
+    //
+    // 0.82m stood on a 1.03m counter puts his head at eye level for someone
+    // walking up. He was 1.15m while invisible, which turned out to be taller
+    // than the awning posts once he could actually be seen.
+    const m = await loadModel(HAMSTER_URL, { height: 0.82, mtl: true });
     if (!m) { console.warn('[trader] hamster unavailable, using fallback'); return; }
     this.trader.remove(this.fallback);
-    m.position.set(0, 1.03, -0.2);
+    m.position.set(0, 1.03, -0.1);
     m.traverse(o => {
       if (!o.isMesh) return;
       o.castShadow = true; o.receiveShadow = true;
@@ -209,8 +245,9 @@ export class Carrots {
     // the hamster fidgets; the stall itself stays put
     const who = this.hamster ?? this.fallback;
     if (who) {
-      who.rotation.y = Math.sin(this.bobT * 0.7) * 0.4;
-      who.position.y = 1.03 + Math.abs(Math.sin(this.bobT * 2.6)) * 0.05;
+      // He faces out over the counter, glancing side to side for customers.
+      who.rotation.y = this.faceYaw + Math.sin(this.bobT * 0.7) * 0.35;
+      who.position.y = 1.03 + Math.abs(Math.sin(this.bobT * 2.6)) * 0.04;
     }
     this.sign.rotation.y = this.bobT * 1.1;
     this.sign.position.y = 1.75 + Math.sin(this.bobT * 1.8) * 0.12;

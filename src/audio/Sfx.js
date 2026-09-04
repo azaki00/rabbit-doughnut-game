@@ -211,6 +211,189 @@ export class Sfx {
     this._tone('triangle', 660, 'ui', 0.05, 0.006, 0.16, t + 0.24);
   }
 
+  // ── horses ──────────────────────────────────────────────────────────────
+
+  // A snort: LOW filtered noise with a slow flutter, plus a hoof scuff. Sits
+  // between the footstep band and the gasp band, and nothing else flutters.
+  horseMount() {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+    const { s, g, f } = this._noise('world', 'bandpass', 260, 2.2, 0.13, 0.02, 0.34, t);
+    f.frequency.exponentialRampToValueAtTime(150, t + 0.3);
+    // the flutter is what makes it a horse rather than a sigh
+    const lfo = a.ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 26;
+    const ld = a.ctx.createGain(); ld.gain.value = 0.07;
+    lfo.connect(ld); ld.connect(g.gain);
+    lfo.start(t); lfo.stop(t + 0.4);
+    this._tone('sine', 88, 'world', 0.07, 0.004, 0.12, t + 0.02);
+    void s;
+  }
+
+  // The buck: a whinny that RISES then breaks, over a body thump. The only
+  // rising-then-falling pitched sound in the game.
+  horseBuck() {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+    const { o, g } = a.osc('sawtooth', 420, 'world');
+    o.frequency.setValueAtTime(380, t);
+    o.frequency.exponentialRampToValueAtTime(900, t + 0.16);
+    o.frequency.exponentialRampToValueAtTime(240, t + 0.52);
+    const bp = a.ctx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 1100; bp.Q.value = 3;
+    g.disconnect(); g.connect(bp); bp.connect(a.buses.world);
+    a.env(g.gain, 0.11, 0.012, 0.55, t);
+    o.start(t); o.stop(t + 0.62);
+
+    // hooves leaving the ground
+    for (let i = 0; i < 2; i++) {
+      this._noise('world', 'lowpass', 200, 1, 0.12, 0.002, 0.10, t + i * 0.11);
+    }
+  }
+
+  // The dismount. Recorded, because there is no synthesizing this one.
+  // Slightly randomised rate so being thrown four times in a row does not
+  // sound machine-stamped.
+  fart(delay = 0) {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t + delay;
+    if (a.hasSample('fart')) {
+      a.playSample('fart', { gain: 0.9, rate: 0.9 + Math.random() * 0.25, bus: 'world', at: t });
+      return;
+    }
+    // fallback: a buzzing sawtooth wobbling down through a lowpass
+    const { o, g } = a.osc('sawtooth', 90, 'world');
+    o.frequency.setValueAtTime(105, t);
+    o.frequency.exponentialRampToValueAtTime(52, t + 0.42);
+    const lp = a.ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 700; lp.Q.value = 8;
+    const wob = a.ctx.createOscillator(); wob.type = 'square'; wob.frequency.value = 34;
+    const wd = a.ctx.createGain(); wd.gain.value = 22;
+    wob.connect(wd); wd.connect(o.frequency);
+    g.disconnect(); g.connect(lp); lp.connect(a.buses.world);
+    a.env(g.gain, 0.13, 0.01, 0.45, t);
+    o.start(t); wob.start(t);
+    o.stop(t + 0.5); wob.stop(t + 0.5);
+  }
+
+  // ── chickens ────────────────────────────────────────────────────────────
+
+  // Squawk: a fast rising-falling warble in the 700-1600Hz band, well above
+  // the horse and well below the reel tick. Short, so a burst of four reads
+  // as four birds rather than one smear.
+  _cluck(at, base = 900, gain = 0.075) {
+    const a = this.a;
+    const { o, g } = a.osc('square', base, 'voice');
+    o.frequency.setValueAtTime(base * 0.7, at);
+    o.frequency.exponentialRampToValueAtTime(base * 1.6, at + 0.05);
+    o.frequency.exponentialRampToValueAtTime(base * 0.55, at + 0.17);
+    const bp = a.ctx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = base * 1.2; bp.Q.value = 2.4;
+    g.disconnect(); g.connect(bp); bp.connect(a.buses.voice);
+    a.env(g.gain, gain, 0.008, 0.19, at);
+    o.start(at); o.stop(at + 0.24);
+  }
+
+  // Thrown: the recorded squawk if there is one, pitched up because it is
+  // being hurled through the air. Otherwise two synthesized clucks and a whoosh.
+  chickenThrow() {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+    if (a.hasSample('chicken')) {
+      a.playSample('chicken', { gain: 0.7, rate: 1.1 + Math.random() * 0.2, bus: 'voice', at: t });
+    } else {
+      this._cluck(t, 1050 + Math.random() * 260, 0.08);
+      this._cluck(t + 0.13, 1250 + Math.random() * 300, 0.055);
+    }
+    const { f } = this._noise('world', 'bandpass', 500, 1.1, 0.045, 0.03, 0.3, t);
+    f.frequency.exponentialRampToValueAtTime(1400, t + 0.28);
+  }
+
+  // Landing: a scuff, and a lower, calmer squawk than the throw.
+  chickenLand() {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+    this._noise('world', 'lowpass', 300, 1, 0.055, 0.002, 0.08, t);
+    if (a.hasSample('chicken')) {
+      a.playSample('chicken', { gain: 0.45, rate: 0.82 + Math.random() * 0.14, bus: 'voice', at: t + 0.03 });
+    } else {
+      this._cluck(t + 0.04, 700 + Math.random() * 150, 0.05);
+    }
+  }
+
+  // Contact: the bird goes off like a small bag of flour.
+  chickenHit() {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+    this._cluck(t, 1500, 0.09);
+    this._noise('world', 'lowpass', 420, 0.9, 0.16, 0.002, 0.16, t);
+    this._tone('sine', 120, 'world', 0.09, 0.003, 0.14, t);
+  }
+
+  // Killed. Recorded — a death squawk is not something worth synthesizing, and
+  // this one is short enough that four in a row do not smear into each other.
+  chickenDie() {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+    if (a.hasSample('chickenDie')) {
+      a.playSample('chickenDie', { gain: 0.95, rate: 0.94 + Math.random() * 0.16, bus: 'voice', at: t });
+      // a puff of feathers under it, so it lands in the world and not in the UI
+      this._noise('world', 'highpass', 2600, 1.2, 0.035, 0.002, 0.09, t);
+      return;
+    }
+    this._cluck(t, 1350, 0.085);
+    this._noise('world', 'highpass', 2600, 1.2, 0.05, 0.002, 0.09, t);
+  }
+
+  // The Sovereign winding up to throw: a chorus, pitched low and wrong.
+  bossCluck() {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+    for (let i = 0; i < 3; i++) this._cluck(t + i * 0.07, 380 + i * 90, 0.06);
+  }
+
+  // ── meat ────────────────────────────────────────────────────────────────
+
+  // Wet slap. Lowest, dullest thing in the game after the footstep.
+  meatDrop() {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+    const { f } = this._noise('world', 'lowpass', 480, 0.8, 0.13, 0.002, 0.12, t);
+    f.frequency.exponentialRampToValueAtTime(160, t + 0.11);
+    this._tone('sine', 82, 'world', 0.07, 0.003, 0.13, t);
+  }
+
+  // Picking it up: the coin chime, one fifth lower, so it reads as related but
+  // not identical.
+  meatPickup() {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+    this._tone('triangle', 1180, 'ui', 0.07, 0.004, 0.13, t);
+    this._tone('triangle', 1770, 'ui', 0.05, 0.004, 0.20, t + 0.055);
+  }
+
+  // ── the toothbrush and the shake ────────────────────────────────────────
+
+  // A dry plastic swish. Very high, very short, and quieter than anything
+  // else — the toothbrush's whole point is that nothing hears it.
+  brushSwing() {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+    const { f } = this._noise('world', 'highpass', 3400, 0.9, 0.035, 0.004, 0.07, t);
+    f.frequency.exponentialRampToValueAtTime(6200, t + 0.06);
+  }
+
+  // Drinking one: a rising two-note swell with a gulp under it. The only
+  // rising pitched pair in the game, so it never reads as a coin.
+  heal() {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+    this._tone('sine', 420, 'ui', 0.07, 0.03, 0.26, t);
+    this._tone('sine', 630, 'ui', 0.06, 0.03, 0.34, t + 0.12);
+    this._tone('sine', 840, 'ui', 0.05, 0.04, 0.42, t + 0.24);
+    const { f } = this._noise('world', 'lowpass', 700, 1.1, 0.05, 0.02, 0.3, t + 0.02);
+    f.frequency.exponentialRampToValueAtTime(260, t + 0.3);
+  }
+
   // ── the shell ───────────────────────────────────────────────────────────
 
   // Bright metallic ring, very high, long decay. Says "that did nothing".
