@@ -605,4 +605,30 @@ export class Sfx {
     o.frequency.exponentialRampToValueAtTime(70, t + 0.25);
     this._tone('sawtooth', 92, 'ui', 0.07, 0.004, 0.30, t);
   }
+
+  // Death. Everything drops away at once: a long descending glide down to
+  // almost nothing, over a filtered thud. The only sound in the game that
+  // takes two full seconds to finish, which is why it lands as final.
+  playerDeath() {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+
+    // the glide
+    for (const [start, end, gain, delay] of [[280, 44, 0.13, 0], [186, 29, 0.10, 0.05]]) {
+      const { o, g } = a.osc('sawtooth', start, 'ui');
+      o.frequency.setValueAtTime(start, t + delay);
+      o.frequency.exponentialRampToValueAtTime(end, t + delay + 1.7);
+      const lp = a.ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 1200; lp.Q.value = 2;
+      lp.frequency.exponentialRampToValueAtTime(160, t + delay + 1.7);
+      g.disconnect(); g.connect(lp); lp.connect(a.buses.ui);
+      a.env(g.gain, gain, 0.01, 1.9, t + delay);
+      o.start(t + delay); o.stop(t + delay + 2.1);
+    }
+
+    // and the body hitting the ground under it
+    const { f } = this._noise('world', 'lowpass', 260, 0.9, 0.18, 0.002, 0.4, t);
+    f.frequency.exponentialRampToValueAtTime(60, t + 0.35);
+    this._tone('sine', 50, 'world', 0.14, 0.004, 0.55, t);
+  }
 }

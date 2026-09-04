@@ -3,6 +3,8 @@ import { Engine } from "./core/Engine.js";
 import { Time } from "./core/Time.js";
 import { Input } from "./core/Input.js";
 import { Controller, MOVE } from "./player/Controller.js";
+import { STAM as STAM_DEF } from "./player/Stamina.js";
+const STAM_MAX = STAM_DEF.max;
 import { Glove, LUNGE } from "./player/Glove.js";
 import { Gun, GUN } from "./player/Gun.js";
 import { Hammer, HAMMER, buildTenderiser } from "./player/Hammer.js";
@@ -28,6 +30,8 @@ import { Impacts } from "./world/Impacts.js";
 import { Music } from "./audio/Music.js";
 import { HealingBooth, HEAL, clinicSpot } from "./world/HealingBooth.js";
 import { Sky } from "./world/Sky.js";
+import { JailCell } from "./world/JailCell.js";
+import { Wasted, WASTED } from "./ui/Wasted.js";
 
 // HARE & GLAZE — M1 "Feel" + the M2 saltation gait.
 // The one question this build exists to answer: does the lunge feel good?
@@ -97,6 +101,7 @@ const state = {
   shot: 0,
   day: 1,
   skins: [],
+  dead: false,
   carrots: 0,
   proteinShake: 0, // dropped by the Sovereign. Purpose to be decided.
   healKits: 0, // shakes bought at the booth, drunk with H
@@ -155,6 +160,13 @@ horses.onScare = (origin, radius) => {
   // hooves, not gunfire: they bolt, but they do not all scream at once
   for (const r of rabbits) r.scare(origin, radius, player, { silent: true });
 };
+
+// ── the cell ──
+// Out at the south-west edge, so dying also costs you the walk back. Kept
+// axis-aligned: the world's colliders are AABBs and one building is not worth
+// teaching them about rotation.
+const jail = new JailCell(engine.scene, world, new THREE.Vector3(-27, 0, -27), 0);
+const wasted = new Wasted();
 
 // ── sky, clouds and weather ──
 // Clear and blue until the Sovereign is out, then it is not.
@@ -246,19 +258,54 @@ const hurtEl = document.getElementById("hurt");
 
 let hurtT = 0;
 function damagePlayer(amount, kind) {
-  if (state.health <= 0) return;
+  if (state.health <= 0 || state.dead) return;
   state.health = Math.max(0, state.health - amount / 100);
   hurtT = 0.45;
   hurtEl.classList.add("flash");
   sfx.playerHurt();
   hud.say(kind === "slam" ? "SLAMMED" : "YOLKED", "bad", 0.9);
-  if (state.health <= 0) {
-    state.health = 1; // §3.4 — death is embarrassing, not punishing
-    state.coins = Math.floor(state.coins * 0.8);
-    player.pos.set(0, 1.65, 9);
-    hud.say("You woke up back at the table.", "bad", 2.4);
-  }
+  if (state.health <= 0) die();
 }
+
+// ── death ──
+// §3.4 — death is embarrassing, not punishing. Fifteen seconds of a countdown
+// insulting you is exactly that, and it costs you nothing but the time and the
+// walk back from the cell.
+function die() {
+  if (state.dead) return;
+  state.dead = true;
+  state.coins = Math.floor(state.coins * 0.8);
+
+  // stop everything the player was in the middle of
+  if (horses.riding) horses.buck(player);
+  player.vel.set(0, 0, 0);
+  player.dashTime = 0;
+  promptEl.className = "";
+
+  sfx.playerDeath?.();
+  wasted.show();
+  document.exitPointerLock?.();
+}
+
+wasted.onRelease = () => {
+  state.dead = false;
+  state.health = 1;
+
+  const at = jail.spawnPoint;
+  player.pos.set(at.x, MOVE.eyeStand, at.z);
+  player.vel.set(0, 0, 0);
+  player.yaw = jail.spawnYaw;
+  player.pitch = 0;
+  player.frozen = 0;
+  player.tumble = 0;
+  player.tumbleDrop = 0;
+  player.tumbleRoll = 0;
+  player.tumblePitch = 0;
+  player.stamina.value = STAM_MAX;
+
+  hud.say("The door is open. Walk out.", "bad", 3.2);
+  if (!input.locked) input.lock();
+};
 
 boss.onDamagePlayer = damagePlayer;
 chickens.onDamage = damagePlayer;
@@ -645,6 +692,26 @@ let respawnT = 0;
 const POPULATION = 16;
 
 function step(dt) {
+  // ── dead ──
+  // Nothing the player owns updates: no look, no movement, no weapons. The
+  // world keeps running underneath, which is the whole point of the shot.
+  if (state.dead) {
+    wasted.update(dt);
+    for (const r of rabbits) r.update(dt, player);
+    carrots.update(dt, rabbits);
+    horses.update(dt);
+    chickens.update(dt, player);
+    impacts.update(dt);
+    meat.update(dt, player.pos);
+    healing.update(dt);
+    jail.update(dt);
+    if (boss.alive) boss.update(dt, player);
+    sky.setStorm(boss.alive && boss.awake, boss.rage);
+    sky.update(dt, engine.camera);
+    input.endStep();
+    return;
+  }
+
   if (input.locked) {
     player.look(input.mouseDX, input.mouseDY, input.sensitivity);
 
@@ -744,6 +811,7 @@ function step(dt) {
 
   horses.update(dt);
   healing.update(dt);
+  jail.update(dt);
   // The storm is on for exactly as long as the Sovereign is out of its shell.
   sky.setStorm(boss.alive && boss.awake, boss.rage);
   sky.update(dt, engine.camera);
@@ -1026,6 +1094,7 @@ hammer ${hammer.owned ? "OWNED" : "not bought"}
 horse  ${horses.riding ? `RIDING ${horses.secondsLeft.toFixed(1)}s` : horses.list.map((h) => h.state[0]).join("")}
 chick  ${chickens.liveCount} live   meat ${meat.pending} on the ground   marks ${impacts.live.length}
 music  ${music.current ?? "-"}   shake ${state.proteinShake}
+dead   ${state.dead ? `YES ${wasted.t.toFixed(1)}s` : "no"}
 storm  ${sky.storm.toFixed(2)}  rain ${sky.rain.visible ? "on" : "off"}  strike in ${sky.strikeIn.toFixed(1)}s
 heal   ${(state.health * 100).toFixed(0)}%   kits ${state.healKits}   weapon4 ${brush.owned ? "toothbrush" : "-"}`,
     );
@@ -1126,6 +1195,9 @@ window.GAME = {
   horses,
   chickens,
   sky,
+  jail,
+  wasted,
+  die,
   mating,
   meat,
   healing,

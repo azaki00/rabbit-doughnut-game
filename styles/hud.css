@@ -281,3 +281,88 @@ kbd {
 #settingsBtn:hover { background: rgba(255,255,255,.14); }
 
 .hint { margin-top: 26px; font-size: 12px; opacity: .4; font-style: italic; }
+
+/* ── WASTED ────────────────────────────────────────────────────────────────
+   GTA's death card. The blur and desaturation are done with backdrop-filter
+   over the live canvas rather than by touching the renderer, so the world keeps
+   running underneath and the effect costs nothing in the scene. */
+#wastedOverlay {
+  position: fixed; inset: 0; z-index: 60;
+  pointer-events: none; opacity: 0;
+  transition: opacity .5s ease;
+  backdrop-filter: grayscale(0) blur(0px);
+  -webkit-backdrop-filter: grayscale(0) blur(0px);
+}
+#wastedOverlay.show {
+  opacity: 1; pointer-events: auto;
+  animation: wDesat 2.2s ease-out forwards;
+}
+@keyframes wDesat {
+  from { backdrop-filter: grayscale(0) blur(0px) brightness(1);
+         -webkit-backdrop-filter: grayscale(0) blur(0px) brightness(1); }
+  to   { backdrop-filter: grayscale(1) blur(3px) brightness(.42);
+         -webkit-backdrop-filter: grayscale(1) blur(3px) brightness(.42); }
+}
+
+/* the vignette closes in from the edges */
+#wastedOverlay .wVignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center,
+    rgba(0,0,0,0) 18%, rgba(20,4,6,.55) 62%, rgba(8,0,2,.94) 100%);
+  opacity: 0; transform: scale(1.5);
+}
+#wastedOverlay.show .wVignette { animation: wVig 2.4s ease-out forwards; }
+@keyframes wVig {
+  from { opacity: 0; transform: scale(1.5); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+#wastedOverlay .wCentre {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 18px;
+}
+
+/* the word itself: huge, serif, letter-spaced, crawling up out of nothing */
+#wastedOverlay .wWord {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(48px, 11vw, 150px);
+  font-weight: 700;
+  letter-spacing: .1em;
+  color: #f4ece2;
+  text-shadow: 0 0 40px rgba(0,0,0,.9), 0 4px 2px rgba(0,0,0,.8);
+  opacity: 0; transform: scale(.86);
+}
+#wastedOverlay.show .wWord { animation: wWord 2.6s cubic-bezier(.16,.84,.3,1) forwards; }
+@keyframes wWord {
+  0%   { opacity: 0; transform: scale(.86); filter: blur(9px); }
+  38%  { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: scale(1.06); filter: blur(0); }
+}
+
+#wastedOverlay .wTaunt {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: clamp(12px, 1.6vw, 18px);
+  letter-spacing: .06em;
+  color: #d8a0a8;
+  min-height: 1.4em;
+  text-shadow: 0 2px 10px rgba(0,0,0,.9);
+}
+/* the typing caret */
+#wastedOverlay .wTaunt::after {
+  content: '_';
+  animation: wCaret 1s steps(1) infinite;
+}
+@keyframes wCaret { 50% { opacity: 0; } }
+
+#wastedOverlay .wCount {
+  margin-top: 6px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px; letter-spacing: .34em; text-transform: uppercase;
+  color: rgba(240,230,218,.42);
+}
+#wastedOverlay .wCount .wNum {
+  display: inline-block; min-width: 2ch; text-align: center;
+  color: #f0e6da; font-size: 22px; letter-spacing: 0;
+}
