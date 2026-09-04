@@ -17,6 +17,9 @@ export class Stamina {
     this.value = STAM.max;
     this.cooldown = 0;
     this.exhausted = false;
+    // Scales sprint drain only. Regen is untouched: §13 buys you a longer
+    // sprint, not a faster recovery.
+    this.drainMul = 1;
   }
 
   get ratio() { return this.value / STAM.max; }
@@ -31,7 +34,7 @@ export class Stamina {
 
   update(dt, sprinting) {
     if (sprinting) {
-      this.spend(STAM.sprintDrain * dt);
+      this.spend(STAM.sprintDrain * this.drainMul * dt);
       return;
     }
     if (this.cooldown > 0) { this.cooldown -= dt; return; }

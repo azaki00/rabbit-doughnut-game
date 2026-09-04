@@ -16,19 +16,64 @@ import * as THREE from 'three';
 //           └ neck → head
 //                └ ear.L/R ← 3 bones each, damped-spring driven
 
-const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+// ── SHARED GEOMETRY AND MATERIALS ──
+//
+// A rabbit is 19 meshes. At 22 rabbits that was 418 BoxGeometry objects and 110
+// materials on the heap, nearly all of them byte-identical: every Cottontail
+// haunch is the same box as every other Cottontail haunch, because the
+// dimensions come from the shared `type`.
+//
+// Both caches live for the page. Rabbits are created and destroyed every time
+// the day rolls over, and re-uploading the same twelve boxes to the GPU each
+// morning is pure waste.
+//
+// CONSEQUENCE, and it is a sharp one: nothing may dispose these, and nothing
+// may mutate them per-rabbit. Rabbit.dispose() used to call geometry.dispose()
+// and would now blank every other rabbit sharing that box. See the note there.
+const geoCache = new Map();
+const box = (w, h, d) => {
+  // 4dp is finer than any dimension in types.js varies, so this never merges
+  // two boxes that should differ.
+  const k = `${w.toFixed(4)},${h.toFixed(4)},${d.toFixed(4)}`;
+  let g = geoCache.get(k);
+  if (!g) { g = new THREE.BoxGeometry(w, h, d); geoCache.set(k, g); }
+  return g;
+};
 
+const sphereCache = new Map();
+const sphere = (r, w, h) => {
+  const k = `${r.toFixed(4)},${w},${h}`;
+  let g = sphereCache.get(k);
+  if (!g) { g = new THREE.SphereGeometry(r, w, h); sphereCache.set(k, g); }
+  return g;
+};
+
+const matCache = new Map();
+function mat(kind, color, opts = {}) {
+  const k = `${kind}|${color}|${opts.roughness ?? ''}|${opts.metalness ?? ''}`;
+  let m = matCache.get(k);
+  if (!m) {
+    m = kind === 'basic'
+      ? new THREE.MeshBasicMaterial({ color })
+      : new THREE.MeshStandardMaterial({ color, flatShading: true, ...opts });
+    matCache.set(k, m);
+  }
+  return m;
+}
+
+// Mutants are painted per-instance by applySkinTo/makeMutant, which REPLACES
+// the material on the mesh rather than editing it — so a mutant never writes
+// through a shared material onto its cousins.
 export function buildRabbit(type) {
   const c = type.colors;
-  const flat = true;
 
-  const matMain  = new THREE.MeshStandardMaterial({ color: c.main,  flatShading: flat, roughness: type.matte ? 1.0 : .88, metalness: 0 });
-  const matBelly = new THREE.MeshStandardMaterial({ color: c.belly, flatShading: flat, roughness: type.matte ? 1.0 : .9,  metalness: 0 });
-  const matEar   = new THREE.MeshStandardMaterial({ color: c.ear,   flatShading: flat, roughness: .9, metalness: 0 });
-  const matTail  = new THREE.MeshStandardMaterial({ color: c.tail,  flatShading: flat, roughness: 1, metalness: 0 });
+  const matMain  = mat('std', c.main,  { roughness: type.matte ? 1.0 : .88, metalness: 0 });
+  const matBelly = mat('std', c.belly, { roughness: type.matte ? 1.0 : .9,  metalness: 0 });
+  const matEar   = mat('std', c.ear,   { roughness: .9, metalness: 0 });
+  const matTail  = mat('std', c.tail,  { roughness: 1, metalness: 0 });
   const matEye   = type.eyeGlow
-    ? new THREE.MeshBasicMaterial({ color: c.eye })
-    : new THREE.MeshStandardMaterial({ color: c.eye, roughness: .35, metalness: .1 });
+    ? mat('basic', c.eye)
+    : mat('std', c.eye, { roughness: .35, metalness: .1 });
 
   const B = type.body;          // body radius-ish
   const L = type.len;           // nose-to-tail length
@@ -156,7 +201,7 @@ export function buildRabbit(type) {
   }
 
   // ── tail ──
-  const tail = new THREE.Mesh(new THREE.SphereGeometry(type.tail, 6, 5), matTail);
+  const tail = new THREE.Mesh(sphere(type.tail, 6, 5), matTail);
   tail.position.set(0, B * 0.06, -L * 0.44);
   tail.castShadow = true;
   haunch.add(tail);
@@ -198,7 +243,7 @@ export function buildRabbit(type) {
     // lumps along the spine
     for (let i = 0; i < (type.lumps ?? 0); i++) {
       const r = B * (0.14 + Math.random() * 0.24);
-      const lump = new THREE.Mesh(new THREE.SphereGeometry(r, 5, 4), matBelly);
+      const lump = new THREE.Mesh(sphere(r, 5, 4), matBelly);
       lump.position.set(
         (Math.random() - 0.5) * B * 0.6,
         B * (0.35 + Math.random() * 0.3),

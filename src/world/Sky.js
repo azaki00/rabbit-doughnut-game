@@ -61,6 +61,22 @@ const PALETTE = {
   hemiGround:[0x6f7a4a, 0x50281f],
 };
 
+// The evening. A SECOND axis, independent of the storm: the storm is the
+// Sovereign's weather and can happen at any hour, so the two are applied in
+// series rather than blended into one palette. Storm first (it decides the
+// mood), then dusk on top (it decides the hour).
+const DUSK = {
+  skyTop:  0x0d1424,
+  skyMid:  0x243a52,
+  skyLow:  0xd98a4e,   // the last of the sun sits on the horizon
+  fog:     0x1e2836,
+  cloud:   0x53566a,
+  sun:     0xffb46a,
+  hemiSky: 0x1a2436,
+  hemiGround: 0x2a2a24,
+};
+const _d = new THREE.Color();
+
 const _c1 = new THREE.Color();
 const _c2 = new THREE.Color();
 const _m = new THREE.Matrix4();
@@ -91,6 +107,7 @@ export class Sky {
     // remember the clear-weather lighting so we can lerp away from it and back
     this.sun = engine.sun;
     this.hemi = this.scene.children.find(o => o.isHemisphereLight);
+    this.dusk = 0;
     this.sunBase = this.sun?.intensity ?? 1.9;
     this.hemiBase = this.hemi?.intensity ?? 1.05;
     this.fogNear = this.scene.fog.near;
@@ -251,6 +268,9 @@ export class Sky {
 
   // ── control ──
   // `on` is simply whether the Sovereign is out. Everything else is easing.
+  // 0 = noon, 1 = full dark. Set once a frame from the DayCycle.
+  setDusk(v) { this.dusk = THREE.MathUtils.clamp(v, 0, 1); }
+
   setStorm(on, rage = 0) {
     this.target = on ? 1 : 0;
     this.rage = rage;
@@ -313,9 +333,43 @@ export class Sky {
       this.hemi.intensity = this.hemiBase * (1 - eased * 0.42) + flick * 1.2 * s;
     }
 
+    // ── dusk, applied on top of everything the storm just decided ──
+    //
+    // Deliberately AFTER the storm rather than mixed into its palette. A storm
+    // at 4pm and a storm at dusk are different skies, and blending one axis
+    // into the other would make the boss fight look like nightfall.
+    //
+    // Lit surfaces go last so `sunBase`/`hemiBase` are still the storm's
+    // numbers when they are scaled.
+    const dk = this.dusk;
+    if (dk > 0.001) {
+      const u = this.domeMat.uniforms;
+      u.uTop.value.lerp(_d.setHex(DUSK.skyTop), dk);
+      u.uMid.value.lerp(_d.setHex(DUSK.skyMid), dk);
+      // The horizon warms before it darkens, so the low band peaks halfway
+      // through the evening rather than tracking straight to black.
+      u.uLow.value.lerp(_d.setHex(DUSK.skyLow), dk * (1 - dk) * 2.4 + dk * 0.35);
+      this.scene.fog.color.lerp(_d.setHex(DUSK.fog), dk);
+      this.baseFog = this.scene.fog.color.clone();
+      // You can see less at night, but never so little that the walk back to
+      // the table becomes a maze.
+      this.scene.fog.far *= 1 - dk * 0.42;
+      if (this.sun) {
+        this.sun.color.lerp(_d.setHex(DUSK.sun), dk);
+        this.sun.intensity *= 1 - dk * 0.82;
+      }
+      if (this.hemi) {
+        this.hemi.color.lerp(_d.setHex(DUSK.hemiSky), dk);
+        this.hemi.groundColor.lerp(_d.setHex(DUSK.hemiGround), dk);
+        // Floors at 18%: moonlight, not a black screen.
+        this.hemi.intensity *= 1 - dk * 0.82;
+      }
+    }
+
     // ── clouds ──
     if (this.clouds) {
       mix(PALETTE.cloud, eased, this.cloudMat.color);
+      if (dk > 0.001) this.cloudMat.color.lerp(_d.setHex(DUSK.cloud), dk);
       const drift = THREE.MathUtils.lerp(SKY.driftClear, SKY.driftStorm, eased);
       const span = SKY.cloudSpanXZ;
       for (const c of this.cloudData) {

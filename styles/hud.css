@@ -153,7 +153,6 @@ body.playing #hud { opacity: 1; }
   font-size: 20px;
 }
 .slot.fixed {
-  margin-left: 16px;
   border: 3px solid var(--rose);
   background: rgba(224,89,111,.2);
   box-shadow: 0 0 0 2px rgba(20,14,12,.5), 0 0 14px rgba(224,89,111,.35);
@@ -295,6 +294,18 @@ kbd {
   filter: none;
 }
 #view.dead {
+  filter: grayscale(1) blur(3px) brightness(.44) contrast(1.1);
+}
+
+/* Eaten raw — §13. Desaturated but NOT blurred: you are meant to be faster and
+   see further, not impaired. The slight cool shift and lifted contrast are what
+   sell "wrong" rather than "damaged". Shares the 2.2s transition above, so it
+   arrives and leaves slowly on its own. .dead wins if both are set, which is
+   correct — dying outranks being high. */
+#view.raw {
+  filter: saturate(.18) contrast(1.14) brightness(1.06) hue-rotate(-8deg);
+}
+#view.dead.raw {
   filter: grayscale(1) blur(3px) brightness(.44) contrast(1.1);
 }
 
@@ -442,3 +453,20 @@ kbd {
   font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
   color: rgba(240,230,218,.28);
 }
+
+/* The day clock. Goes cold and slightly dimmer at night — the only place the
+   HUD ever tells you the hour, and it should read as a state, not an alarm. */
+#dayLabel { transition: color .8s ease, opacity .8s ease; }
+#dayLabel.night { color: #8fa8c8; opacity: .78; letter-spacing: .16em; }
+
+/* The bar reads 1-6 left to right: four weapons, then the two consumables.
+   The gap marks where held things stop and carried things start; it used to sit
+   on the glove, from when the consumables came first in the markup. */
+#kitSlot { margin-left: 16px; }
+.slot .num {
+  position: absolute; right: 3px; bottom: 1px;
+  font-size: 9px; opacity: .55; font-weight: 700;
+}
+.slot { position: relative; }
+.slot.locked { opacity: .38; }
+.slot.active { border-color: var(--rose); background: rgba(224,89,111,.18); }

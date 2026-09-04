@@ -87,6 +87,17 @@ export class Pickups {
     return this.coins.length;
   }
 
+  // Wipe the field and lay it out again. Used when the day rolls over.
+  //
+  // scatterHidden() APPENDS, so calling it a second time would leave a second
+  // coin sitting inside every one the player never found. Clearing first is the
+  // whole point of this method existing.
+  reset() {
+    for (const c of this.coins) this.group.remove(c.obj);
+    this.coins.length = 0;
+    return this.scatterHidden();
+  }
+
   spawn(x, z, value = 25) {
     const obj = this._proto.clone(true);
     const y = this.world.groundHeight(x, z) + 0.42;

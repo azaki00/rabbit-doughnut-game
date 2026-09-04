@@ -82,17 +82,17 @@
   <h1>HARE &amp; GLAZE</h1>
   <div class="sub">Build progress — every step taken, in progress, or considered.</div>
   <div class="meta">
-    Last updated: 2026-09-04 (rev 3) &nbsp;·&nbsp; Milestone 1 “Feel” + M2 gait, plus the systems below<br>
+    Last updated: 2026-09-05 (rev 4) &nbsp;·&nbsp; Milestone 1 “Feel” + M2 gait, plus the systems below<br>
     Estimates are ideal working time for one developer. “Actual” is what it took here, including debugging.
   </div>
 </header>
 
 <div class="totals">
-  <div class="stat"><b>49</b><span>Shipped</span></div>
-  <div class="stat"><b>0</b><span>In progress</span></div>
-  <div class="stat"><b>12</b><span>Planned</span></div>
-  <div class="stat"><b>~77 h</b><span>Est. shipped</span></div>
-  <div class="stat"><b>~97 h</b><span>Est. remaining</span></div>
+  <div class="stat"><b>64</b><span>Shipped</span></div>
+  <div class="stat"><b>1</b><span>Awaiting you</span></div>
+  <div class="stat"><b>1</b><span>Planned</span></div>
+  <div class="stat"><b>~131 h</b><span>Est. shipped</span></div>
+  <div class="stat"><b>~46 h</b><span>Est. remaining</span></div>
 </div>
 
 <div class="banner">
@@ -169,6 +169,39 @@
   <td><span class="pill done">Done</span></td><td class="est">20 m</td><td class="act">20 m</td>
   <td>—</td>
 </tr>
+<tr>
+  <td><span class="what">Save / load</span>
+    <span class="note">One localStorage key, the §14 schema. Coins, day, skins and which one is on
+      each weapon, carrots, shakes, the hammer, catch and shot counts. Autosaves on purchase, case
+      open, skin equip, catch and slab pickup; writes in one tick coalesce.</span>
+    <span class="files">src/core/Save.js, src/main.js, src/ui/Settings.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">3 h</td><td class="act">2 h</td>
+  <td>Skins persist as (skinId, float) and are re-minted on load, so retuning the tables reaches old
+    saves. Corrupt JSON, an unknown version, a deleted skin id and non-numeric coins all degrade to a
+    clean start rather than a black screen. Settings kept their own key — two sources of truth for FOV
+    would have been settled by import order.</td>
+</tr>
+<tr>
+  <td><span class="what">Six slots + wheel cycling</span>
+    <span class="note">The bar is 1–6 left to right: glove, gun, hammer, toothbrush, healing shake,
+      protein shake. The wheel steps forward and back with wrap; Q shares the rule. Locked slots are
+      stepped over by the wheel but explained by the number keys. Slot 5 drinks on click.</span>
+    <span class="files">src/core/Input.js, src/main.js, src/ui/Hud.js, index.html, styles/hud.css</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">1.5 h</td><td class="act">1 h</td>
+  <td>One slotBlocked() feeds both the wheel and the number keys, so they cannot disagree about what
+    you own. Wheel is captured only while pointer-locked, so the wardrobe still scrolls.</td>
+</tr>
+<tr>
+  <td><span class="what">Performance: shared rabbit geometry</span>
+    <span class="note">A rabbit is 19 meshes. At 22 rabbits that was 418 BoxGeometry objects and 110
+      materials, nearly all byte-identical. Both now cached page-wide.</span>
+    <span class="files">src/rabbits/RabbitMesh.js, src/rabbits/Rabbit.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">6 h</td><td class="act">1 h</td>
+  <td class="over"><span class="a">Sharing made Rabbit.dispose() dangerous — disposing one rabbit's
+    box would blank every rabbit sharing it. It was dead code until the day cycle began replacing the
+    field each morning, which is precisely when it would have bitten. Instancing and a texture atlas
+    were NOT done: they are a bigger change and the draw-call count is not yet a problem.</span></td>
+</tr>
 </tbody>
 </table>
 
@@ -228,6 +261,17 @@
   <td><span class="pill done">Done</span></td><td class="est">4 h</td><td class="act">6 h</td>
   <td class="over"><span class="a">First pass had no cap or rate limit: mutants breeding with mutants filled the
     meadow with building-sized rabbits worth more than the boss.</span></td>
+</tr>
+<tr>
+  <td><span class="what">Eat it raw (§13)</span>
+    <span class="note">Catching the Black Rabbit leaves you holding it. F eats it for 35 HP:
+      45 s of +60% speed, −70% sprint drain, +40% lunge reach, desaturated screen and whispers.
+      Eating another while buffed extends the timer and doubles the cost.</span>
+    <span class="files">src/player/RawBuff.js, src/audio/Sfx.js, src/main.js, styles/hud.css</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">2 h</td><td class="act">2 h</td>
+  <td>The buff owns only the timer and the numbers; it exposes multipliers main.js applies, so
+    Controller, Stamina and Glove each gained one field and no import. Its timer runs above the frame
+    guards — below them you could park a 45 s buff indefinitely by talking to the Stranger.</td>
 </tr>
 </tbody>
 </table>
@@ -348,6 +392,57 @@
   <td><span class="pill done">Done</span></td><td class="est">2 h</td><td class="act">2.5 h</td>
   <td>Carried shakes are the better deal only if you take them into the fight.</td>
 </tr>
+<tr>
+  <td><span class="what">Clothing rack + sell-back (§7)</span>
+    <span class="note">One rack, three rails, west of the chests. Hangers are painted with whatever
+      is equipped on that weapon. Its panel wears or sells: sell price is §7's
+      baseValue × (1 − float) × 0.55, armed on the first click and committed on the second.</span>
+    <span class="files">src/world/ClothingRack.js, src/ui/Wardrobe.js, styles/wardrobe.css, src/main.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">7 h</td><td class="act">3 h</td>
+  <td class="over"><span class="a">Shipped as one task, not two: §7 puts sell-back at the clothing
+    rack, so they are the same object. valueOf() had existed uncalled since the skins landed.
+    Selling your last worn skin is refused rather than supported — no weapon can return to bare
+    paint, and keeping a copy of every default material alive for that one case is not worth it.</span></td>
+</tr>
+<tr>
+  <td><span class="what">The goat room (§8)</span>
+    <span class="note">5×5 m off the north-west corner. Magenta carpet, lime walls, orange trim,
+      cyan ceiling, three RGB lights cycling out of phase. 44 procedural goat paintings in four
+      styles, one frame empty. A machine that opens any of the three cases (1/2/3). A goat bleats
+      every ~90 s from nowhere.</span>
+    <span class="files">src/world/GoatRoom.js, src/audio/Sfx.js, src/main.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">6 h</td><td class="act">2 h</td>
+  <td class="over"><span class="a">The three chests stay by the table — they are the shortcut and
+    the physical decision, and the user asked for them explicitly. The empty frame is seeded, not
+    random. hit() does not consume, so 1/2/3 at the machine also swapped your weapon until the
+    switch was guarded.</span></td>
+</tr>
+<tr>
+  <td><span class="what">Baking, recipes and the fryer (§6)</span>
+    <span class="note">Meat is an ingredient, not a payout: collect a slab, then sell it or grind it
+      into dough. Eight recipes, two unlocked at the start, the rest gated on day, catches by type,
+      a mid-binky catch, or recipe-book completion. Counter sells flour/sugar/yeast/cinnamon/glaze/
+      sprinkles. Fryer minigame grades PERFECT/GOLDEN/FINE/BURNT.</span>
+    <span class="files">src/economy/Recipes.js, src/ui/Bakery.js, styles/bakery.css,
+      src/world/MeatDrops.js, src/audio/Sfx.js, src/core/Save.js, src/main.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">22 h</td><td class="act">4 h</td>
+  <td class="over"><span class="a">Slabs had to start carrying the rabbit's type key — a slab that
+    does not know what it came from cannot become Lop dough. The Warren's unlock counts only recipes
+    that do not themselves gate on completion, or the rule is self-referential. The fryer runs on
+    real time: step() is paused whenever an overlay holds the cursor, which is exactly when the
+    fryer is on screen. Glaze colours and the order board (§6.5) are NOT built.</span></td>
+</tr>
+<tr>
+  <td><span class="what">The goat, and an enterable goat room</span>
+    <span class="note">The user's Goat.obj stands in the corner and breathes. Room grown to 7×7 at
+      2.9 m; doorway given jambs, a lintel and a carpet spilling out.</span>
+    <span class="files">src/world/GoatRoom.js, src/main.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">1 h</td><td class="act">1 h</td>
+  <td class="over"><span class="a">Two bugs kept you out: the room was yawed a flat Math.PI, pointing
+    its only door at the treeline, and its colliders were built in local space while the room was
+    rotated — so walls and collision had drifted apart. Yaw now derives from the room's own position
+    and snaps to quarter turns, with the boxes rotated to match.</span></td>
+</tr>
 </tbody>
 </table>
 
@@ -463,6 +558,20 @@
   <td class="over"><span class="a">Placed inside a pine clump twice: the trees load asynchronously, so a clearance
     scan against <code>world.colliders</code> at build time passes everything.</span></td>
 </tr>
+<tr>
+  <td><span class="what">The day cycle (§2)</span>
+    <span class="note">Five real minutes of daylight, then an untimed night. The light drains over
+      the last 65 s on a quadratic; sleep at the cooking table to start the next day, which restocks
+      the field with a slightly richer mix. HUD clock counts down, then reads NIGHT.</span>
+    <span class="files">src/world/DayCycle.js, src/world/Sky.js, src/ui/Hud.js, src/main.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">5 h</td><td class="act">3 h</td>
+  <td class="over"><span class="a">Dusk is a second axis on Sky applied after the storm, not mixed
+    into its palette — otherwise the boss fight looks like evening. Two latent bugs surfaced while
+    wiring the restock: scatterHidden() appends, so a nightly call would leave a duplicate coin inside
+    every one never found (added Pickups.reset), and Mating holds direct rabbit references that
+    nothing marks dead on removal, so pairs kept courting objects no longer in the scene (added
+    Mating.clear).</span></td>
+</tr>
 </tbody>
 </table>
 
@@ -494,6 +603,53 @@
   <td><span class="pill done">Done</span></td><td class="est">1 h</td><td class="act">1.5 h</td>
   <td class="over"><span class="a">Aiming at his head centred him behind the dialogue box; standing him deep in the
     shack put the camera inside the roof beams.</span></td>
+</tr>
+<tr>
+  <td><span class="what">Hammer purchasable by mouse</span>
+    <span class="note">The buy option is first on the greeting and on every relevant node.
+      Clicking it works; so do the number keys.</span>
+    <span class="files">src/ui/Dialogue.js, src/main.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">0.5 h</td><td class="act">1.5 h</td>
+  <td class="over"><span class="a">Two separate bugs wearing one coat. Hover called the destructive
+    _render(), so the element under the cursor was rebuilt between mousedown and mouseup and no click
+    ever fired — Enter worked throughout, which hid it. Split into _render() and _highlight().
+    The number keys failed on their own: options is a function, and Function.length is arity, so the
+    bounds check was always against 0.</span></td>
+</tr>
+<tr>
+  <td><span class="what">Crouch moved off Ctrl</span>
+    <span class="note">Crouch is C / Z. No binding may live on Ctrl.</span>
+    <span class="files">src/core/Input.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">0.1 h</td><td class="act">0.2 h</td>
+  <td class="over"><span class="a">Ctrl+W closes the tab and a page cannot preventDefault a reserved
+    browser shortcut, so crouching while walking forward quit the game outright.</span></td>
+</tr>
+<tr>
+  <td><span class="what">Dialogue no longer opens Settings</span>
+    <span class="note">input.onUnlock now ignores releases owned by the reel, a conversation,
+      an open dialogue and the death screen.</span>
+    <span class="files">src/main.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">0.2 h</td><td class="act">0.3 h</td>
+  <td>It treated every pointer-lock release as Esc.</td>
+</tr>
+<tr>
+  <td><span class="what">Conversation camera inside foliage</span>
+    <span class="note">The line from his face to the camera is clear, but the camera can still sit
+      <em>inside</em> a tree canopy. Needs a clear-tube test from behind the intended spot rather
+      than a single ray from his face.</span>
+    <span class="files">src/world/Merchant.js, src/main.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">1 h</td><td class="act">0.5 h</td>
+  <td>Six short probe rays from the destination itself; three or more hits means enclosed and the
+    framing is demoted. A canopy cone has no bottom cap, so the old face-ray slipped in under the
+    skirt and reported a clear line into a wall of leaves.</td>
+</tr>
+<tr>
+  <td><span class="what">Codebase map + syllabus</span>
+    <span class="note">CLAUDE.md as the reading order and trap list; docs/CODEMAP.md as the
+      per-module index. Both verified against source, not memory.</span>
+    <span class="files">CLAUDE.md, docs/CODEMAP.md</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">1 h</td><td class="act">1 h</td>
+  <td>Measured fan-in: Loaders.js 11, applySkin.js 3, Engine.js 3, then ones. main.js is the only hub.</td>
 </tr>
 </tbody>
 </table>
@@ -541,46 +697,10 @@
 <thead><tr><th style="width:42%">Task</th><th style="width:11%">Status</th><th style="width:11%">Est.</th><th style="width:11%">Actual</th><th>Notes</th></tr></thead>
 <tbody>
 <tr>
-  <td><span class="what">The baking half</span>
-    <span class="note">Grinder, mixer, fryer minigame, glazing station. The other half of the premise.</span></td>
-  <td><span class="pill next">Planned</span></td><td class="est">14 h</td><td class="act">—</td>
-  <td>Table stations already exist as four labelled boxes waiting for it.</td>
-</tr>
-<tr>
-  <td><span class="what">Doughnut recipes + unlocks</span>
-    <span class="note">8 doughnut types, recipe discovery, order board.</span></td>
-  <td><span class="pill next">Planned</span></td><td class="est">8 h</td><td class="act">—</td>
-  <td>Kenney + Jarlan Perez doughnut assets are already in OBJECTS/.</td>
-</tr>
-<tr>
-  <td><span class="what">The goat room</span>
-    <span class="note">Small garish gambling room, goat paintings, lots of colour. Locked design decision.</span></td>
-  <td><span class="pill next">Planned</span></td><td class="est">6 h</td><td class="act">—</td>
-  <td>The reel exists; the room does not.</td>
-</tr>
-<tr>
-  <td><span class="what">The clothing rack</span>
-    <span class="note">Physical place to change gloves, rather than auto-equipping on unbox.</span></td>
-  <td><span class="pill next">Planned</span></td><td class="est">3 h</td><td class="act">—</td>
-  <td>Now needs three racks, or one rack with three rails.</td>
-</tr>
-<tr>
   <td><span class="what">Protein Shake purpose</span>
     <span class="note">Currently a counter with no effect, by request.</span></td>
   <td><span class="pill wip">Awaiting</span></td><td class="est">?</td><td class="act">—</td>
   <td>Blocked on a design decision, not on code.</td>
-</tr>
-<tr>
-  <td><span class="what">Save / load</span>
-    <span class="note">Coins, skins, day, unlocks. Schema is already specified in the design doc.</span></td>
-  <td><span class="pill next">Planned</span></td><td class="est">3 h</td><td class="act">—</td>
-  <td>Everything is currently lost on refresh.</td>
-</tr>
-<tr>
-  <td><span class="what">Day cycle</span>
-    <span class="note">Days advance, lighting shifts, the field repopulates differently.</span></td>
-  <td><span class="pill next">Planned</span></td><td class="act">—</td><td class="est">5 h</td>
-  <td>HUD already shows “DAY 1”.</td>
 </tr>
 <tr>
   <td><span class="what">Maps 2–4</span>
@@ -589,28 +709,10 @@
   <td>Greybox is single-map today; world build is not yet parameterised.</td>
 </tr>
 <tr>
-  <td><span class="what">Black Rabbit eat-raw mechanic</span>
-    <span class="note">The only way to lose health outside the boss fight. F is bound but inert.</span></td>
-  <td><span class="pill next">Planned</span></td><td class="est">2 h</td><td class="act">—</td>
-  <td>Specified in §13; the rabbit and its dread already exist.</td>
-</tr>
-<tr>
-  <td><span class="what">Skin trade-up / cash out</span>
-    <span class="note">Sell duplicates back for coins; the “cash out” half of the original brief.</span></td>
-  <td><span class="pill next">Planned</span></td><td class="est">4 h</td><td class="act">—</td>
-  <td><code>valueOf()</code> already exists and is unused.</td>
-</tr>
-<tr>
   <td><span class="what">Mutant breeding depth</span>
     <span class="note">Second-generation mutants inheriting from mutant parents; a runaway line.</span></td>
   <td><span class="pill cut">Parked</span></td><td class="est">3 h</td><td class="act">—</td>
   <td>Capped instead: value ceiling 1000c, scale derived from value, one birth per 90 s.</td>
-</tr>
-<tr>
-  <td><span class="what">Performance pass</span>
-    <span class="note">Instancing for rabbits, texture atlas, draw-call audit.</span></td>
-  <td><span class="pill next">Planned</span></td><td class="est">6 h</td><td class="act">—</td>
-  <td>Not currently a problem; will be with 4 maps.</td>
 </tr>
 </tbody>
 </table>

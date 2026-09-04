@@ -1,0 +1,115 @@
+/* The wardrobe — GAME_DESIGN.md §7
+   Quieter than the case reel on purpose. The reel is a slot machine; this is
+   a cupboard, and it should feel like inventory rather than a payout. */
+
+#wardrobeOverlay {
+  position: fixed; inset: 0; z-index: 45;
+  display: none;
+  align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 50% 40%, rgba(28,26,34,.80), rgba(8,7,10,.93) 72%);
+}
+#wardrobeOverlay.show { display: flex; }
+
+.wdBox {
+  width: min(760px, 94vw);
+  max-height: 82vh;
+  display: flex; flex-direction: column;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #23212a, #16151b);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.07), 0 24px 64px rgba(0,0,0,.66);
+  color: #e6e2da;
+  font: 14px/1.4 system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.wdHead {
+  padding: 16px 20px 0;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+.wdTitle {
+  font-weight: 700; letter-spacing: .22em; font-size: 13px;
+  color: #cbb98e; margin-bottom: 12px;
+}
+.wdTabs { display: flex; gap: 4px; }
+.wdTab {
+  appearance: none; border: 0; cursor: pointer;
+  padding: 9px 16px 10px;
+  background: transparent; color: #8b8578;
+  font: 600 12px/1 system-ui, sans-serif; letter-spacing: .12em;
+  border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s;
+}
+.wdTab:hover { color: #cfc8bb; }
+.wdTab.on { color: #f0e9dc; border-bottom-color: #cbb98e; }
+.wdTab::after {
+  content: attr(data-n);
+  margin-left: 7px; opacity: .5; font-weight: 400;
+}
+
+.wdList { overflow-y: auto; padding: 10px 12px; flex: 1; }
+
+.wdRow {
+  display: flex; align-items: center; gap: 14px;
+  padding: 9px 12px; margin-bottom: 5px;
+  border-radius: 9px; cursor: pointer;
+  background: rgba(255,255,255,.028);
+  border-left: 3px solid var(--tier, #b0c3d9);
+  transition: background .13s;
+}
+.wdRow:hover { background: rgba(255,255,255,.07); }
+.wdRow.on { background: rgba(203,185,142,.13); cursor: default; }
+
+.wdSwatch {
+  width: 62px; height: 42px; flex: none;
+  border-radius: 5px; background-size: cover; background-position: center;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.4);
+}
+.wdMeta { flex: 1; min-width: 0; }
+.wdName {
+  font-weight: 600; font-size: 14px; color: #f2ece1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wdSub { display: flex; gap: 10px; margin-top: 3px; font-size: 11.5px; }
+.wdTier { color: var(--tier, #b0c3d9); font-weight: 600; }
+.wdWear { color: #8b8578; }
+.wdFloat { color: #6b6558; font-variant-numeric: tabular-nums; }
+
+.wdActs { display: flex; align-items: center; gap: 10px; flex: none; }
+.wdWorn {
+  font: 700 10px/1 system-ui, sans-serif; letter-spacing: .16em; color: #cbb98e;
+  min-width: 34px; text-align: right;
+}
+.wdSell {
+  appearance: none; cursor: pointer;
+  padding: 7px 12px; border-radius: 6px;
+  border: 1px solid rgba(255,255,255,.13);
+  background: rgba(255,255,255,.04); color: #b9b2a4;
+  font: 600 11.5px/1 system-ui, sans-serif; letter-spacing: .05em;
+  font-variant-numeric: tabular-nums;
+  transition: background .13s, color .13s, border-color .13s;
+}
+.wdSell:hover { background: rgba(255,255,255,.1); color: #ece5d7; }
+/* Armed. Selling is the only destructive act in the game, so the second press
+   has to look like a different button, not the same one again. */
+.wdSell.arm {
+  background: #7c2d2d; border-color: #a33f3f; color: #ffd9d9;
+  animation: wdPulse .9s ease-in-out infinite;
+}
+@keyframes wdPulse { 50% { background: #983939; } }
+
+.wdEmpty { padding: 44px 20px; text-align: center; color: #7d7669; }
+.wdEmpty span { font-size: 12.5px; opacity: .7; }
+
+.wdFoot {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 11px 20px; border-top: 1px solid rgba(255,255,255,.07);
+  font-size: 11.5px; color: #7d7669;
+}
+.wdCount { font-variant-numeric: tabular-nums; }
+
+/* Worn and the only one on its rail: there is nothing to swap onto. */
+.wdSell.cant {
+  cursor: not-allowed; opacity: .38;
+  background: transparent; border-style: dashed;
+}
+.wdSell.cant:hover { background: transparent; color: #b9b2a4; }

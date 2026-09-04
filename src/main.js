@@ -2,14 +2,22 @@ import * as THREE from "three";
 import { Engine } from "./core/Engine.js";
 import { Time } from "./core/Time.js";
 import { Input } from "./core/Input.js";
+import { Save } from "./core/Save.js";
 import { Controller, MOVE } from "./player/Controller.js";
 import { STAM as STAM_DEF } from "./player/Stamina.js";
 const STAM_MAX = STAM_DEF.max;
 import { Glove, LUNGE } from "./player/Glove.js";
+import { RawBuff, RAW } from "./player/RawBuff.js";
 import { Gun, GUN } from "./player/Gun.js";
 import { Hammer, HAMMER, buildTenderiser } from "./player/Hammer.js";
 import { Toothbrush, BRUSH } from "./player/Toothbrush.js";
 import { Greybox } from "./world/Greybox.js";
+import { DayCycle, DAY } from "./world/DayCycle.js";
+import { ClothingRack, RACK } from "./world/ClothingRack.js";
+import { GoatRoom, GOAT } from "./world/GoatRoom.js";
+import { Wardrobe } from "./ui/Wardrobe.js";
+import { Bakery } from "./ui/Bakery.js";
+import { SUPPLIES, missingFor, consume } from "./economy/Recipes.js";
 import { Rabbit, ST } from "./rabbits/Rabbit.js";
 import { TYPES, SPAWNABLE } from "./rabbits/types.js";
 import { Mating, MATE } from "./rabbits/Mating.js";
@@ -75,23 +83,70 @@ const brush = new Toothbrush(engine, player, {
 
 // The glove can never be unequipped (§17.6) — swapping only decides which is
 // IN HAND. Slot 1 is always the glove; slot 3 is locked until bought.
+// ── THE SIX SLOTS ──
+//
+// 1-6 select directly; the wheel steps through them in order and wraps at both
+// ends. Slots 1-4 are the weapons; 5 and 6 are the two carried consumables, and
+// they are slots rather than bare hotkeys so the bar means one thing all the
+// way across rather than "weapons, then some other stuff".
+//
+// Locked slots are STEPPED OVER by the wheel but still refuse a direct number
+// press with a reason. Scrolling past a hammer you cannot afford four times a
+// minute would be maddening; pressing 3 and being told why is information.
+const SLOTS = ["glove", "gun", "hammer", "brush", "kit", "shake"];
 const WEAPON_NAMES = {
   glove: "Red Glove",
   gun: "The Culling Piece",
   hammer: "The Tenderiser",
   brush: "Toothbrush",
+  kit: "Healing Shake",
+  shake: "Protein Shake",
 };
+
+// Why a slot is unavailable, or null if it is fine. One place, so the wheel and
+// the number keys can never disagree about what you own.
+function slotBlocked(w) {
+  if (w === "hammer" && !hammer.owned) {
+    return `The Tenderiser — ${HAMMER.price}c from the Stranger`;
+  }
+  if (w === "kit" && state.healKits <= 0) {
+    return `No shakes — ${HEAL.itemPrice}c at the booth`;
+  }
+  if (w === "shake" && state.proteinShake <= 0) {
+    return "No Protein Shake — the Sovereign drops it";
+  }
+  return null;
+}
+
 let weapon = "glove";
 function swapTo(w) {
   if (w === weapon) return;
-  if (w === "hammer" && !hammer.owned) {
+  const why = slotBlocked(w);
+  if (why) {
     sfx.deny();
-    hud.say(`The Tenderiser — ${HAMMER.price}c at the table`, "bad");
+    hud.say(why, "bad");
     return;
   }
   if (glove.busy || gun.busy || hammer.busy || brush.busy) return; // no swap-cancelling
   weapon = w;
   hud.say(WEAPON_NAMES[w], "good", 0.9);
+}
+
+// The wheel. Steps `dir` slots and keeps going past anything locked, so it can
+// never leave you holding something you do not have. Bails after one full lap.
+function cycleSlot(dir) {
+  if (glove.busy || gun.busy || hammer.busy || brush.busy) return;
+  let i = SLOTS.indexOf(weapon);
+  for (let n = 0; n < SLOTS.length; n++) {
+    i = (i + dir + SLOTS.length) % SLOTS.length;
+    const w = SLOTS[i];
+    if (!slotBlocked(w)) {
+      weapon = w;
+      sfx.uiMove?.();
+      hud.say(WEAPON_NAMES[w], "good", 0.9);
+      return;
+    }
+  }
 }
 
 player.bob.onFootfall = (i) => sfx.footstep(i);
@@ -107,8 +162,36 @@ const state = {
   carrots: 0,
   proteinShake: 0, // dropped by the Sovereign. Purpose to be decided.
   healKits: 0, // shakes bought at the booth, drunk with H
+  blackMeat: 0, // uneaten black rabbits. §13 — the only ones you can eat raw
+  // ── the bakery ── §6
+  meat: [], // collected slabs: { type, value, label }. Sell them or grind them.
+  dough: {}, // rabbit-type key -> portions, ground from meat
+  supplies: {}, // flour/sugar/yeast/cinnamon/glaze/sprinkles -> count
+  baked: {}, // recipe id -> how many; drives recipe-book completion
+  caughtByType: {}, // the unlock conditions in §6.4 count these
+  binkyCatches: 0,
 };
 const rabbits = [];
+
+// ── persistence ── §14
+// Which instance is on each weapon. The weapons themselves do not remember —
+// applySkin() paints and forgets — so the record lives here, where it is also
+// what gets written to the save.
+const equipped = { glove: null, gun: null, brush: null };
+const save = new Save();
+
+// ── the black rabbit, eaten raw ── §13
+const raw = new RawBuff(sfx);
+// Coalesce bursts: buying three carrots in a second is one write, not three.
+let saveQueued = false;
+function autosave() {
+  if (saveQueued) return;
+  saveQueued = true;
+  queueMicrotask(() => {
+    saveQueued = false;
+    save.write({ state, hammer, equipped });
+  });
+}
 
 // ── the three chests: where skins are unlocked ── §9.1
 // A row of them beside the cooking table, always visible in the world. One per
@@ -137,6 +220,109 @@ const chests = CHEST_ROW.map((c) => {
 const reel = new CaseReel(sfx);
 const promptEl = document.getElementById("prompt");
 
+// ── the clothing rack ── §7
+// West of the chest arc, facing the table: you unbox on one side of the
+// clearing and decide what to wear on the other, so the two are separate acts.
+const rack = new ClothingRack(
+  engine.scene,
+  world,
+  new THREE.Vector3(-4.6, 0, 5.8),
+  Math.atan2(4.6, 3.2),
+);
+const wardrobe = new Wardrobe(sfx);
+const bakery = new Bakery(sfx);
+
+// ── the bakery ── §6
+//
+// Grinding is the decision the whole gun economy hangs on: a Cottontail slab
+// sells for about 45c, but ground into dough it becomes a 40c Plain Hopper at
+// worst and a 700c Warren at best. Selling is never wrong — it is just the
+// answer for someone who needs coins today.
+const SUPPLY_PRICE = Object.fromEntries(
+  Object.entries(SUPPLIES).map(([k, v]) => [k, v.price]),
+);
+const missingForRecipe = (r) => missingFor(r, state.dough, state.supplies);
+const consumeForRecipe = (r) => consume(r, state.dough, state.supplies);
+
+bakery.getState = () => state;
+
+bakery.onSellMeat = (i) => {
+  const m = state.meat[i];
+  if (!m) return;
+  state.meat.splice(i, 1);
+  state.coins += m.value;
+  hud.say(`Sold ${m.label}  +${m.value}c`, "good", 1.4);
+  autosave();
+};
+
+bakery.onGrind = (i) => {
+  const m = state.meat[i];
+  if (!m) return;
+  state.meat.splice(i, 1);
+  state.dough[m.type] = (state.dough[m.type] ?? 0) + 1;
+  // §6.3: comedy, not gore. A hand-crank and a very brief muffled honk.
+  sfx.grind?.();
+  hud.say(`Ground — ${state.dough[m.type]}× ${m.type} dough`, "good", 1.4);
+  autosave();
+};
+
+bakery.onBuy = (key) => {
+  const price = SUPPLY_PRICE[key];
+  if (state.coins < price) return;
+  state.coins -= price;
+  state.supplies[key] = (state.supplies[key] ?? 0) + 1;
+  autosave();
+};
+
+// Spends the ingredients and returns whether the fryer may start. Doing it here
+// rather than in the panel keeps every mutation of `state` in main.js.
+bakery.onBake = (recipe) => {
+  const missing = missingForRecipe(recipe);
+  if (missing) { sfx.deny(); hud.say(missing, "bad"); return false; }
+  consumeForRecipe(recipe);
+  autosave();
+  return true;
+};
+
+bakery.onFinish = (recipe, grade, coins) => {
+  state.coins += coins;
+  state.baked[recipe.id] = (state.baked[recipe.id] ?? 0) + 1;
+  sfx.coin();
+  if (grade.name === "BURNT") sfx.deny();
+  hud.say(`${recipe.name} — ${grade.name}  +${coins}c`, grade.tone || "good", 2.4);
+  autosave();
+};
+
+bakery.onClose = () => {
+  if (!input.locked) input.lock();
+};
+
+// ── the goat room ── §8
+//
+// Off the north-west corner of the clearing, far enough that you have to choose
+// to go. §8 wants a room you enter, not a menu you open.
+//
+// THE DOOR HAS TO FACE THE MAP. The doorway is on the room's local +Z face, so
+// the yaw is derived from the room's own position rather than typed in: the
+// first version was yawed a flat Math.PI, which pointed the only entrance at
+// the treeline and made the room a sealed box you could walk all the way around
+// without ever finding the way in.
+//
+// findCellSpot is the same clearance search the jail uses — the room is 7 m
+// square now and the trees load asynchronously, so a hand-picked coordinate is
+// exactly how the cell ended up inside a pine clump twice.
+const goatSpot = findCellSpot(world, new THREE.Vector3(-15, 0, 14), {
+  clear: 8,
+  fromBuildings: 13,
+});
+const goatRoom = new GoatRoom(
+  engine.scene,
+  world,
+  goatSpot,
+  Math.atan2(-goatSpot.x, -goatSpot.z),
+);
+goatRoom.sfx = sfx;   // it owns the bleat
+
 // Which weapon a skin lands on is decided by the case it came out of.
 const SKIN_TARGET = {
   glove: (inst) => glove.applySkin(inst),
@@ -144,9 +330,54 @@ const SKIN_TARGET = {
   brush: (inst) => brush.applySkin(inst),
 };
 
+// ONE path to wearing something. The reel, the wardrobe and the save restore
+// all go through here, so the weapon, the `equipped` record and the hanger on
+// the rack can never disagree about what you have on.
+function equip(inst) {
+  if (!inst) return;
+  SKIN_TARGET[inst.collection]?.(inst);
+  equipped[inst.collection] = inst.instId;
+  rack.setEquipped(inst.collection, inst);
+}
+
 reel.onFinish = (inst) => {
   state.skins.push(inst);
-  SKIN_TARGET[inst.collection]?.(inst); // equip it immediately
+  equip(inst); // straight onto the weapon, as it always has
+  autosave(); // §14: case open and skin equip both trigger a write
+};
+
+wardrobe.getSkins = () => state.skins;
+wardrobe.getEquipped = () => equipped;
+
+wardrobe.onEquip = (inst) => {
+  equip(inst);
+  hud.say(`${inst.name} — ${inst.wear}`, "good", 1.6);
+  autosave();
+};
+
+// §7: baseValue * (1 - float) * 0.55, which is what valueOf() computes and the
+// wardrobe has already shown on the button.
+wardrobe.onSell = (inst, worth) => {
+  const i = state.skins.findIndex((x) => x.instId === inst.instId);
+  if (i < 0) return;
+  state.skins.splice(i, 1);
+  state.coins += worth;
+
+  // Selling what you are wearing swaps you onto the next one of that
+  // collection. There is always one to swap to: the wardrobe refuses to sell
+  // your last worn skin, precisely so this branch never has to unpaint a
+  // weapon — none of the three know how, and teaching them would mean keeping
+  // a copy of every default material alive for a case that need not exist.
+  if (equipped[inst.collection] === inst.instId) {
+    const next = state.skins.filter((x) => x.collection === inst.collection).pop();
+    if (next) equip(next);
+  }
+  hud.say(`Sold ${inst.name}  +${worth}c`, "good", 1.8);
+  autosave();
+};
+
+wardrobe.onClose = () => {
+  if (!input.locked) input.lock();
 };
 reel.onHide = () => {
   if (!input.locked) return;
@@ -199,10 +430,15 @@ impacts.group.userData.noChatBlock = true;
 
 // ── the meat you shot ── shot rabbits pay on collection, not on the shot
 const meat = new MeatDrops(engine.scene, world, sfx);
-meat.onCollect = (value, label) => {
-  state.coins += value;
+// §6: a slab is an INGREDIENT now, not a payout. It goes in the satchel, and
+// at the table you decide: sell it for what it is worth, or grind it into dough
+// and bake something worth several times more. That decision is the whole
+// reason the gun is worth carrying.
+meat.onCollect = (value, label, typeKey) => {
+  state.meat.push({ type: typeKey ?? "cottontail", value, label });
+  autosave();
   sfx.meatPickup();
-  hud.say(`${label}  +${value}c`, "good", 1.2);
+  hud.say(`${label} — ${state.meat.length} in the satchel`, "good", 1.4);
 };
 
 // ── the Sovereign's chickens ── phase two
@@ -261,7 +497,8 @@ function damagePlayer(amount, kind) {
   hurtT = 0.45;
   hurtEl.classList.add("flash");
   sfx.playerHurt();
-  hud.say(kind === "slam" ? "SLAMMED" : "YOLKED", "bad", 0.9);
+  // §13: eating it raw is a decision, not an attack. The game does not name it.
+  if (kind !== "raw") hud.say(kind === "slam" ? "SLAMMED" : "YOLKED", "bad", 0.9);
   if (state.health <= 0) die();
 }
 
@@ -271,6 +508,7 @@ function damagePlayer(amount, kind) {
 // walk back from the cell.
 function die() {
   if (state.dead) return;
+  raw.cancel();   // §13: the buff and its whispers do not survive you
   state.dead = true;
   state.coins = Math.floor(state.coins * 0.8);
 
@@ -665,6 +903,7 @@ function merchantTree() {
 function buyHammer() {
   if (hammer.owned || state.coins < HAMMER.price) { sfx.deny(); return; }
   state.coins -= HAMMER.price;
+  autosave();
   hammer.owned = true;
   sfx.purchase();
   document.getElementById("hammerSlot").classList.remove("locked");
@@ -690,9 +929,43 @@ function blocksChat(obj) {
   return true;
 }
 
+// A clear LINE is not the same as a clear SPOT.
+//
+// The line test asks "can he see the camera", and a pine answers yes right up
+// until the camera is standing inside its foliage. A canopy cone has no bottom
+// cap, so a ray from his face can slip in under the skirt, reach the far end,
+// and report nothing in the way — while the render is a wall of leaves.
+//
+// So probe the destination itself: six short rays out from the spot along the
+// cardinal axes. Open air hits nothing. A spot buried in a canopy hits on most
+// of them. The threshold is deliberately not 6 — standing beside the shack wall
+// or under the cart's awning legitimately blocks one or two directions, and
+// those are framings worth keeping.
+const ENCLOSED = { probe: 0.85, need: 3 };
+const _probeDirs = [
+  new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0),
+  new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0),
+  new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1),
+];
+
+function enclosed(point) {
+  let hit = 0;
+  for (const dir of _probeDirs) {
+    _chatRay.set(point, dir);
+    _chatRay.near = 0.01;
+    _chatRay.far = ENCLOSED.probe;
+    const hits = _chatRay
+      .intersectObjects(engine.scene.children, true)
+      .filter((h) => blocksChat(h.object));
+    if (hits.length && ++hit >= ENCLOSED.need) return true;   // early out
+  }
+  return false;
+}
+
 function clearChatSpot() {
   const look = merchant.lookAt;
   let fallback = null;
+  let boxedIn = null;
 
   for (const want of merchant.focusCandidates()) {
     _chatDir.subVectors(want, look);
@@ -706,14 +979,25 @@ function clearChatSpot() {
       .intersectObjects(engine.scene.children, true)
       .filter((h) => blocksChat(h.object));
 
-    if (!hits.length) return want;                  // clear line — take it
+    if (!hits.length) {
+      // The line is clear. Now make sure the far end is somewhere you would
+      // want to stand.
+      if (!enclosed(want)) return want;
+      // Keep it, but only as a last resort — a buried camera still beats one
+      // staring at the back of a shack.
+      if (!boxedIn) boxedIn = want;
+      continue;
+    }
     if (!fallback) {
       // remember how far we COULD get along the best framing
       const d = Math.max(0.6, hits[0].distance - 0.25);
       fallback = look.clone().addScaledVector(_chatDir, d);
     }
   }
-  return fallback ?? merchant.focus;
+
+  // Pulling back short of an obstruction beats sitting inside one, so the
+  // blocked-line fallback outranks the enclosed spot.
+  return fallback ?? boxedIn ?? merchant.focus;
 }
 
 function startChat() {
@@ -798,23 +1082,121 @@ const _returnCam = new THREE.PerspectiveCamera();
 function spawn(typeKey, x, z) {
   const t = TYPES[typeKey];
   const r = new Rabbit(t, new THREE.Vector3(x, 0, z), world, voice);
+  r.typeKey = typeKey;   // mutants are built elsewhere and have none; that is fine
   engine.scene.add(r.obj);
   rabbits.push(r);
   return r;
 }
 
-function populate() {
-  const n = 14;
+// The field, freshly stocked. Called once at boot and again every time you
+// wake, so no two days look the same.
+//
+// The count drifts up slowly with the day number and the mix skews toward the
+// rarer types, which is the only progression curve the game has until the
+// bakery lands. It is deliberately gentle: §2 wants ~30 days of content, so a
+// day-30 field should feel richer than day 1, not unrecognisable.
+function populate(day = 1) {
+  const n = Math.min(22, 12 + Math.floor(day * 0.6) + Math.floor(Math.random() * 3));
   for (let i = 0; i < n; i++) {
-    const key = SPAWNABLE[Math.floor(Math.random() * SPAWNABLE.length)];
+    // Later days reach deeper into SPAWNABLE, which is ordered common-first.
+    const reach = Math.min(1, 0.45 + day * 0.055);
+    const pick = Math.floor(Math.pow(Math.random(), 1 / reach) * SPAWNABLE.length);
+    const key = SPAWNABLE[Math.min(SPAWNABLE.length - 1, pick)];
     const a = Math.random() * Math.PI * 2;
     const d = 10 + Math.random() * 30;
     spawn(key, Math.cos(a) * d, Math.sin(a) * d);
   }
-  // One Black Rabbit so its circling behaviour can be evaluated. §13
-  spawn("black", 18, -18);
+
+  // §13: max one per day, ~18% chance. Day one is guaranteed, because a
+  // mechanic nobody has met cannot be evaluated — after that it is the coin
+  // flip the spec asks for, and its absence is what makes it worth seeing.
+  if (day === 1 || Math.random() < 0.18) {
+    const a = Math.random() * Math.PI * 2;
+    spawn("black", Math.cos(a) * 22, Math.sin(a) * 22);
+  }
 }
 populate();
+
+// ── the day ── §2
+const dayCycle = new DayCycle(state.day);
+let skyDusk = 0;   // eased toward dayCycle.dusk; see step()
+let machineKind = 0;   // which case the goat-room machine is set to
+
+dayCycle.onNightfall = () => {
+  sfx.deny?.();          // a flat, unhappy note — the day is over, not won
+  hud.say("The light has gone. Sleep at the table.", "bad", 4.0);
+  autosave();            // §14 lists day end as a save point
+};
+
+dayCycle.onWake = (day) => {
+  state.day = day;
+  // Clear the field and restock it. Rabbits are cheap — they are procedural
+  // and hold no textures — so a wholesale replace is simpler and cheaper than
+  // reconciling which ones survived the night.
+  mating.clear();        // pairs hold rabbit refs; drop them before the wipe
+  for (const r of rabbits) r.dispose(engine.scene);
+  rabbits.length = 0;
+  populate(day);
+  raw.newDay();          // §13: the whisper count is per-day
+  pickups.reset();       // wipes first — scatterHidden alone would duplicate
+  skyDusk = 0;           // morning is a cut, not a slow sunrise
+  hud.say(`DAY ${day}`, "good", 2.6);
+  autosave();
+};
+
+// ── restore ── §14
+//
+// Runs after every system exists but before the first frame, so a restored
+// hammer is already in the slot and a restored skin is already on the glove by
+// the time anything renders. Failures here are non-fatal by design: a save that
+// cannot be read leaves you at day one with nothing, which is the same place a
+// new player starts.
+function restore() {
+  const d = save.read();
+  if (!d) return false;
+
+  state.day = d.day;
+  dayCycle.day = d.day;   // built before restore(), so it has to be told
+  state.coins = d.coins;
+  state.carrots = d.carrots;
+  state.healKits = d.healKits;
+  state.proteinShake = d.proteinShake;
+  state.blackMeat = d.blackMeat;
+  state.meat = d.meat;
+  state.dough = d.dough;
+  state.supplies = d.supplies;
+  state.baked = d.baked;
+  state.caughtByType = d.caughtByType;
+  state.binkyCatches = d.binkyCatches;
+  state.caught = d.caught;
+  state.shot = d.shot;
+  state.skins = d.skins;
+
+  if (d.hammer) {
+    hammer.owned = true;
+    document.getElementById("hammerSlot")?.classList.remove("locked");
+  }
+
+  // Re-equip by instance id. Falling back to the newest skin of a collection
+  // matters for saves written before `equipped` existed and for any instance
+  // whose skin has since been removed from the tables.
+  for (const kind of ["glove", "gun", "brush"]) {
+    const want = d.equipped?.[kind];
+    const inst =
+      d.skins.find((x) => x.instId === want && x.collection === kind) ??
+      [...d.skins].reverse().find((x) => x.collection === kind);
+    if (!inst) continue;
+    equip(inst);
+  }
+
+  const age = d.savedAt ? Math.round((Date.now() - d.savedAt) / 60000) : null;
+  console.log(
+    `[save] restored day ${d.day}, ${d.coins}c, ${d.skins.length} skins` +
+      (age === null ? "" : ` (${age} min old)`),
+  );
+  return true;
+}
+const restored = restore();
 
 // ── the grab query ───────────────────────────────────────────────────────────
 // A forward cone originating at the glove, not the camera. §4.1
@@ -870,15 +1252,34 @@ glove.onGrab = (radius, origin, dir) => {
   const clutch = glove.charge >= 0.98 && fleeing;
   const value = Math.round(best.type.value * (clutch ? 1.25 : 1));
 
+  // §6.4 counts catches by type and binky catches — those are the unlock
+  // conditions for the Jackrabbit Twist, the Sugar Binky, the Midnight Cruller
+  // and the Duke's Old Fashioned. Recorded BEFORE catchIt() clears the state
+  // that says whether it was mid-binky.
+  const wasBinky = best.binky > 0;   // Rabbit.binky is a 0..1 ramp, not a flag
+  const key = best.typeKey ?? "cottontail";
+  state.caughtByType[key] = (state.caughtByType[key] ?? 0) + 1;
+  if (wasBinky) {
+    state.binkyCatches++;
+    // A rabbit caught mid-binky grinds into its own kind of dough (§6.4 #5).
+    state.caughtByType.binky = (state.caughtByType.binky ?? 0) + 1;
+  }
+
   best.catchIt();
   state.coins += value;
+  autosave(); // a caught rabbit is the thing you would most hate to lose
   state.caught++;
 
-  sfx.coin();
-  if (clutch) {
+  // §13: the black one is the only rabbit you can eat, so catching it leaves
+  // you holding something as well as paying out. No warning, no explanation.
+  if (best.typeKey === "black" || best.type.name === "Black Rabbit") {
+    state.blackMeat++;
+    hud.say(`${best.type.name}  +${value}c  ·  raw, in your hands`, "bad", 2.4);
+  } else if (clutch) {
     sfx.clutch();
     hud.say(`CLUTCH GRAB  +${value}c`, "good", 1.6);
   } else hud.say(`${best.type.name}  +${value}c`, "good");
+  sfx.coin();
 
   return best;
 };
@@ -1135,6 +1536,21 @@ let respawnT = 0;
 const POPULATION = 16;
 
 function step(dt) {
+  // ABOVE THE GUARDS, deliberately. The raw buff is 45 seconds of wall clock,
+  // and if it paused during a conversation you could park it indefinitely by
+  // talking to the Stranger. It also has to be able to expire while you are
+  // dead, so the whispers do not survive the respawn.
+  raw.update(dt);
+  canvas.classList.toggle("raw", raw.active);
+  // The clock keeps running through a conversation and through the death hold.
+  // Standing in the WASTED screen is already fifteen seconds of your day.
+  dayCycle.update(dt);
+  // Ease rather than assign. `dusk` steps 0.88 -> 1.0 the instant night lands,
+  // and a one-frame jump in the sky colour reads as a bug even though the
+  // number is correct. Fast enough to still feel like the light going.
+  skyDusk += (dayCycle.dusk - skyDusk) * Math.min(1, dt * 1.6);
+  sky.setDusk(skyDusk);
+
   // ── dead ──
   // Nothing the player owns updates: no look, no movement, no weapons. The
   // world keeps running underneath, which is the whole point of the shot.
@@ -1193,16 +1609,25 @@ function step(dt) {
       player.update(dt, input);
     }
 
-    if (input.hit("slot1")) swapTo("glove");
-    if (input.hit("slot2")) swapTo("gun");
-    if (input.hit("slot3")) swapTo("hammer");
-    if (input.hit("slot4")) swapTo("brush");
-    if (input.hit("swapWeapon")) {
-      const order = hammer.owned
-        ? ["glove", "gun", "hammer", "brush"]
-        : ["glove", "gun", "brush"];
-      swapTo(order[(order.indexOf(weapon) + 1) % order.length]);
+    // 1-6 select a slot directly. At the goat-room machine 1/2/3 pick the case
+    // instead, and `hit()` does not consume — so without this guard, choosing a
+    // case would also swap your weapon.
+    const atMachineNow = goatRoom.canUse(player.pos);
+    for (let i = 0; i < SLOTS.length; i++) {
+      if (atMachineNow && i < 3) continue;
+      if (input.hit("slot" + (i + 1))) swapTo(SLOTS[i]);
     }
+
+    // The wheel steps through the six in order, both ways. Accumulated over the
+    // frame, so a fast flick moves several slots instead of dropping notches.
+    if (input.wheel) {
+      const dir = input.wheel > 0 ? 1 : -1;
+      for (let n = Math.min(6, Math.abs(input.wheel)); n > 0; n--) cycleSlot(dir);
+    }
+    // Q is the wheel's keyboard twin, and shares its skip-the-locked rule
+    // rather than keeping a second hand-maintained order list that could drift
+    // out of step with what you actually own.
+    if (input.hit("swapWeapon")) cycleSlot(1);
 
     // Both hands are on the mane: while mounted the weapons are not updated at
     // all, and every viewmodel is hidden.
@@ -1255,7 +1680,10 @@ function step(dt) {
 
   // ── drink a shake, wherever you are ──
   // Deliberately usable mid-fight: that is what you paid the 150c for.
-  if (input.hit("useHeal")) {
+  // Slot 5 held: the left button drinks it, the same as H. A consumable in a
+  // slot has to be usable the way everything else in a slot is.
+  const drinkNow = input.hit("useHeal") || (weapon === "kit" && input.lmbDown);
+  if (drinkNow) {
     if (state.healKits <= 0) {
       sfx.deny();
       hud.say(`No shakes — ${HEAL.itemPrice}c at the booth`, "bad");
@@ -1267,9 +1695,35 @@ function step(dt) {
       state.health = Math.min(1, state.health + HEAL.itemHeal);
       sfx.heal?.();
       hud.say(`Shake — ${state.healKits} left`, "good", 1.4);
+      autosave();
+      // Drinking the last one leaves you holding nothing. Step off the slot
+      // rather than standing there with an empty hand.
+      if (state.healKits <= 0 && weapon === "kit") swapTo("glove");
     }
   }
 
+  // ── eat it raw ── §13
+  //
+  // Deliberately terse. The game does not warn you, does not confirm, and does
+  // not congratulate you — §13 is explicit that it never comments. The only
+  // acknowledgement is the whispers, and they are not addressed to you.
+  if (input.hit("eatRaw")) {
+    if (state.blackMeat <= 0) {
+      sfx.deny();
+    } else {
+      state.blackMeat--;
+      const cost = raw.eat();
+      damagePlayer(cost, "raw");
+      // No hud.say on the buff itself. The desaturation and the whispers are
+      // the feedback; a line of text would make it a power-up.
+      hud.say(`−${cost} HP`, "bad", 1.2);
+      autosave();
+    }
+  }
+
+  player.speedMul = raw.speedMul;
+  player.stamina.drainMul = raw.drainMul;
+  glove.reachMul = raw.reachMul;
   if (input.hit("dropCarrot") && state.carrots > 0) {
     state.carrots--;
     carrots.drop(player.pos, player.flatForward);
@@ -1283,6 +1737,8 @@ function step(dt) {
   healing.update(dt);
   jail.update(dt);
   merchant.update(dt);
+  rack.update(dt, player.pos, dayCycle.isNight);
+  goatRoom.update(dt);
   // The storm is on for exactly as long as the Sovereign is out of its shell.
   sky.setStorm(boss.alive && boss.awake, boss.rage);
   sky.update(dt, engine.camera);
@@ -1360,6 +1816,7 @@ function step(dt) {
         hud.say("Nothing to patch up", "bad");
       } else if (state.coins >= HEAL.fullPrice) {
         state.coins -= HEAL.fullPrice;
+        autosave();
         sfx.purchase();
         healToFull();
       } else {
@@ -1374,6 +1831,7 @@ function step(dt) {
         hud.say(`You can only carry ${HEAL.maxCarried}`, "bad");
       } else if (state.coins >= HEAL.itemPrice) {
         state.coins -= HEAL.itemPrice;
+        autosave();
         state.healKits++;
         sfx.purchase();
         hud.say(`Shake × ${state.healKits} — drink with H`, "good", 1.8);
@@ -1400,6 +1858,7 @@ function step(dt) {
     if (input.hit("interact")) {
       if (afford) {
         state.coins -= CARROT.price;
+        autosave();
         state.carrots++;
         sfx.purchase();
         hud.say(`Carrot × ${state.carrots} — press G to drop`, "good", 1.6);
@@ -1412,7 +1871,26 @@ function step(dt) {
 
   // The cooking table sells nothing now. The Tenderiser is the Stranger's, and
   // `atTable` survives only so the other prompts keep their priority order.
-  const atTable = false;
+  // The cooking table. §6.1 puts it at the exact centre of the map and calls it
+  // the hub, and it now is one: the bakery by day, and at night the only way to
+  // end the day.
+  const nearTable =
+    !reel.visible && !bakery.visible && !wardrobe.visible &&
+    player.pos.distanceTo(TABLE_POS) < 3.2;
+  const atTable = dayCycle.isNight && nearTable;
+  const atBakery = !dayCycle.isNight && nearTable;
+
+  if (atBakery) {
+    promptEl.className = "show";
+    const n = state.meat.length;
+    promptEl.innerHTML =
+      `<kbd>E</kbd>The cooking table &nbsp;<span class="cost">` +
+      `${n} slab${n === 1 ? "" : "s"}</span>`;
+    if (input.hit("interact")) {
+      document.exitPointerLock?.();
+      bakery.show();
+    }
+  }
 
   // ── the sealed egg ──
   if (boss.alive && boss.sealed) {
@@ -1452,7 +1930,64 @@ function step(dt) {
   const canUse = !!openChest;
   pickups.update(dt, player.pos);
 
-  if (canUse && !atTable && !atTrader) {
+  // ── the goat room machine ── §8
+  //
+  // The three chests by the table stay exactly where they are: they are the
+  // shortcut, and they are what makes the case you are buying a physical
+  // decision. The machine is the same three cases in the room the spec built
+  // for them, with 1/2/3 to switch rather than a walk between chests.
+  const atMachine =
+    !reel.visible && !wardrobe.visible && !bakery.visible &&
+    goatRoom.canUse(player.pos);
+  if (atMachine) {
+    for (let i = 0; i < CHEST_ROW.length; i++) {
+      if (input.hit("slot" + (i + 1))) {
+        machineKind = i;
+        sfx.uiMove?.();
+      }
+    }
+    const pick = CHEST_ROW[machineKind];
+    const afford = state.coins >= CASE_COST;
+    promptEl.className = "show" + (afford ? "" : " cant");
+    promptEl.innerHTML =
+      `<kbd>E</kbd>${pick.label} &nbsp;<span class="cost">${CASE_COST}c</span>` +
+      `<span style="opacity:.45"> &nbsp;1/2/3 to switch</span>`;
+    if (input.hit("interact")) {
+      if (afford) {
+        state.coins -= CASE_COST;
+        autosave();
+        sfx.chestOpen();
+        document.exitPointerLock?.();
+        reel.open(pick.kind);
+      } else {
+        sfx.deny();
+        hud.say("Not enough coins", "bad");
+      }
+    }
+  }
+
+  // ── the rack ── §7
+  const atRack = !reel.visible && !wardrobe.visible && rack.canUse(player.pos);
+  if (atRack && !atTable) {
+    promptEl.className = "show";
+    const n = state.skins.length;
+    promptEl.innerHTML =
+      `<kbd>E</kbd>The wardrobe &nbsp;<span class="cost">${n} skin${n === 1 ? "" : "s"}</span>`;
+    if (input.hit("interact")) {
+      document.exitPointerLock?.();
+      wardrobe.show("glove");
+    }
+  }
+
+  // ── sleep ── §2: night is untimed, and this is the only way out of it
+  if (atTable) {
+    promptEl.className = "show";
+    promptEl.innerHTML = `<kbd>E</kbd>Sleep &nbsp;<span class="cost">DAY ${dayCycle.day + 1}</span>`;
+    if (input.hit("interact")) {
+      sfx.purchase?.();
+      dayCycle.sleep();
+    }
+  } else if (canUse && !atTrader && !atRack && !atMachine && !atBakery) {
     const afford = state.coins >= CASE_COST;
     promptEl.className = "show" + (afford ? "" : " cant");
     promptEl.innerHTML =
@@ -1460,6 +1995,7 @@ function step(dt) {
     if (input.hit("interact")) {
       if (afford) {
         state.coins -= CASE_COST;
+        autosave();
         openChest.pop();
         sfx.chestOpen();
         document.exitPointerLock?.();
@@ -1474,7 +2010,10 @@ function step(dt) {
     !atMerchant &&
     !atHealing &&
     !horsePrompt &&
-    (!atTable || hammer.owned)
+    !atTable &&
+    !atRack &&
+    !atMachine &&
+    !atBakery
   ) {
     promptEl.className = "";
   }
@@ -1506,6 +2045,11 @@ function frame() {
   requestAnimationFrame(frame);
   time.tick(step);
 
+  // The fryer runs on REAL time, not the fixed step. §6.3 asks for a six-second
+  // bake, and step() is paused whenever an overlay has the cursor — which is
+  // exactly when the fryer is on screen.
+  bakery.update(time.frameDt);
+
   // The conversation camera takes over from the controller while it is easing
   // in, held, and easing back out.
   if (!updateChatCamera(time.frameDt)) player.applyToCamera(engine.camera);
@@ -1520,6 +2064,9 @@ function frame() {
     coins: state.coins,
     carrots: state.carrots,
     healKits: state.healKits,
+    day: dayCycle.day,
+    clock: dayCycle.clock,
+    proteinShake: state.proteinShake,
     weapon,
     ammo: gun.ammo,
     reserve: gun.reserve,
@@ -1543,7 +2090,7 @@ carrot ${state.carrots} held, ${carrots.active.length} down   lured ${rabbits.fi
 weapon ${weapon}  ammo ${gun.ammo}/${gun.reserve}${gun.reloading > 0 ? " RELOADING" : ""}
 caught ${state.caught}  shot ${state.shot}  coins ${state.coins}  rabbits ${rabbits.length}
 near   ${near ? `${near.r.type.name} ${near.d.toFixed(1)}m ${near.r.state} p${near.r.gait.phase.toFixed(2)}${near.r.gait.airborne ? " AIR" : ""}` : "-"}
-black  ${blackNear.toFixed(2)}   courting ${mating.courting}  hearts ${mating.hearts.length}  born ${mating.born}  next ${mating.nextIn.toFixed(0)}s
+black  ${blackNear.toFixed(2)}  meat ${state.blackMeat}  raw ${raw.t.toFixed(0)}s   courting ${mating.courting}  hearts ${mating.hearts.length}  born ${mating.born}  next ${mating.nextIn.toFixed(0)}s
 boss   ${boss.alive ? `${boss.state} shell ${boss.shell} hp ${Math.ceil(boss.health)} rage ${boss.rage.toFixed(2)}` : "DEAD"}
 hammer ${hammer.owned ? "OWNED" : "not bought"}
 horse  ${horses.riding ? `RIDING ${horses.secondsLeft.toFixed(1)}s` : horses.list.map((h) => h.state[0]).join("")}
@@ -1580,6 +2127,15 @@ settings.onDevCoins = (n) => {
   state.coins += n;
   sfx.coin();
   hud.say(`DEV  +${n}c`, "good", 2.0);
+  autosave();
+};
+
+// dev tool — wipe the save. Does not reset the running session; the point is to
+// see what a first boot looks like on the next reload.
+settings.onWipeSave = () => {
+  save.clear();
+  sfx.deny();
+  hud.say("SAVE WIPED — reload for a fresh start", "bad", 3.0);
 };
 
 // ── start gate ───────────────────────────────────────────────────────────────
@@ -1597,6 +2153,11 @@ async function enterGame() {
   const ok = await input.lock();
   if (ok) {
     gate.classList.add("hidden");
+    // Say it once, on the first entry only — not every time you close Settings.
+    if (restored && !enterGame._said) {
+      enterGame._said = true;
+      hud.say(`DAY ${state.day} — progress restored`, "good", 2.6);
+    }
   } else {
     // The browser refused (usually a cooldown right after Esc). Show the gate
     // so there is always something clickable rather than a frozen screen.
@@ -1615,7 +2176,8 @@ document
 // Clicking the world re-locks. Without this, any stray Esc drops you into a
 // state where the keys look broken because movement is gated on pointer lock.
 canvas.addEventListener("click", () => {
-  if (input.locked || settings.visible || reel.visible) return;
+  if (input.locked || settings.visible || reel.visible || wardrobe.visible ||
+      bakery.visible) return;
   // clicking the world during a conversation or a death must not re-grab the
   // cursor — you need it to pick a reply
   if (chat.on || dialogue.visible || state.dead) return;
@@ -1630,6 +2192,8 @@ canvas.addEventListener("click", () => {
 // the cursor on purpose has to be named here.
 input.onUnlock = () => {
   if (reel.visible) return;      // opening a case
+  if (wardrobe.visible) return;  // at the rack
+  if (bakery.visible) return;    // at the cooking table
   if (chat.on) return;           // talking to the Stranger
   if (dialogue.visible) return;
   if (state.dead) return;        // the WASTED screen

@@ -32,6 +32,7 @@ export class Glove {
 
     this.state = S.IDLE;
     this.t = 0;
+    this.reachMul = 1;   // external multiplier; see the raw-meat buff (§13)
     this.charge = 0;          // 0..1
     this.chargeSeconds = 0;
     this.didHit = false;
@@ -200,7 +201,8 @@ export class Glove {
   }
 
   _resolveGrab() {
-    const radius = THREE.MathUtils.lerp(LUNGE.radiusMin, LUNGE.radiusMax, this.charge);
+    const radius =
+      THREE.MathUtils.lerp(LUNGE.radiusMin, LUNGE.radiusMax, this.charge) * this.reachMul;
     // Grab originates at the glove, not the camera — §4.1
     // Low: you are scooping a rabbit off the ground, so the reach starts at
     // roughly waist height, not at the chest.

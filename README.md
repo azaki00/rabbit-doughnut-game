@@ -101,6 +101,16 @@ Catching it is easy. It lets you. The difficulty is that catching it is a
 decision rather than a skill test — and then you have to decide whether to bake
 it, or eat it raw.
 
+Catching it leaves you holding it. **`F` eats it raw**, for 35 HP: forty-five
+seconds of +60% speed, sprint drain cut by 70%, and 40% more reach on the lunge.
+The colour drains out of everything — desaturated, not blurred; you are faster
+and seeing further, not impaired — and something starts whispering. Eat another
+while it is running and the timer extends but the price doubles: 35, then 70,
+then 140. It ends on a hard cut to silence.
+
+The game will not stop you, warn you, confirm it, or mention it afterwards.
+Nothing on screen tells you how many you have had today. The whispers do.
+
 ---
 
 ## The gun
@@ -365,12 +375,47 @@ volume slider and the black rabbit's ducking leaves it alone.
 
 ---
 
+## The day
+
+A day is five real minutes. You will not notice the first four — then the light
+starts going, quickly, and the horizon warms before it darkens. When it is gone
+it is night, and night has no clock on it.
+
+**Sleep at the cooking table** to end it. The field is restocked while you sleep,
+and not with the same rabbits: the count creeps up with the day number and the
+mix reaches further into the rarer types. The Black Rabbit is a coin flip after
+day one — roughly one day in six — which is what makes it worth seeing.
+
+The clock does not stop for a conversation, and it does not stop while you are
+lying dead on the grass. Fifteen seconds of WASTED is fifteen seconds of your
+day.
+
+---
+
+## It remembers you
+
+Coins, the day, your skins and which one is on each weapon, carried carrots and
+shakes, the hammer, and how many rabbits you have caught — all of it survives a
+refresh. It saves the moment something changes: a purchase, an opened case, an
+equipped skin, a caught rabbit, a collected slab.
+
+Skins are not stored whole. A skin's palette, pattern, finish and wear name are
+all derived from its id and its float, so only those two are written down and
+the rest is rebuilt on load — which means retuning the skin tables improves old
+saves instead of leaving them stranded on the old numbers.
+
+A save that cannot be read is discarded rather than defended: you start at day
+one, which is where a new player starts anyway. **DEV TOOLS → Wipe save** does
+it on purpose.
+
+---
+
 ## Built with
 
 - **Three.js** r169 via CDN import map — no bundler, no `npm install`
 - **WebAudio** for all sound
 - **Pointer Lock API** for mouse look
-- **localStorage** for settings
+- **localStorage** for settings and saved progress
 - Vanilla ES modules. Edit a file, reload the page.
 
 ---

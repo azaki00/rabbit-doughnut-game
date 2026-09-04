@@ -37,7 +37,7 @@ export class MeatDrops {
     this.world = world;
     this.sfx = sfx;
     this.list = [];
-    this.onCollect = null;      // (value, label) => void
+    this.onCollect = null;      // (value, label, typeKey) => void
 
     this.group = new THREE.Group();
     scene.add(this.group);
@@ -73,7 +73,9 @@ export class MeatDrops {
     this.proto = m;
   }
 
-  // `cut` describes the animal: { scale, color, fat, label, value }.
+  // `cut` describes the animal: { scale, color, fat, label, value, type }.
+  // `type` is the rabbit's key, and it is what the bakery grinds — a slab
+  // that does not know what it came from cannot become Cottontail dough.
   drop(position, cut) {
     const obj = (this.proto ?? this.fallback).clone(true);
 
@@ -119,6 +121,7 @@ export class MeatDrops {
       obj: lay,
       value: cut.value,
       label: cut.label,
+      type: cut.type ?? null,
       baseY: y,
       spin: Math.random() * Math.PI * 2,
       life: MEAT.life,
@@ -166,7 +169,7 @@ export class MeatDrops {
       if (dx * dx + dz * dz < MEAT.pickupRadius * MEAT.pickupRadius &&
           Math.abs(dy) < MEAT.verticalReach) {
         d.taken = true;
-        this.onCollect?.(d.value, d.label);
+        this.onCollect?.(d.value, d.label, d.type);
       }
     }
   }

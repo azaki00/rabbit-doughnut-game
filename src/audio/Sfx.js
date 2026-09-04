@@ -481,6 +481,143 @@ export class Sfx {
   // Thunder: a long, low, filtered roar with a crack on the front. Occupies a
   // band nothing else touches (sub-200Hz sustained for two seconds) so it
   // never fights the boss or the gun, and the crack sells the distance.
+  // ── eaten raw ── §13
+  //
+  // The only SUSTAINED sound in this file. Everything else fires and decays;
+  // this runs for the length of the buff and is stopped by hand.
+  //
+  // Three bandpass layers on one looping noise source, each swept by its own
+  // slow LFO at frequencies that share no common divisor — so the layers drift
+  // in and out of alignment and never settle into a pitch you could hum or a
+  // rhythm you could count. That is what keeps it on the right side of "almost
+  // words". Deliberately mid-band (300-1900 Hz), where nothing else in the game
+  // lives: thunder is below it, the reel ticks above it.
+  //
+  // `level` is 1, 2, 3+ for the first, second and third of the day. Higher
+  // levels narrow Q and lift the top layer, which is what makes it read as
+  // more nearly intelligible without ever being a word.
+  whispers(level = 1) {
+    const a = this.a; if (!a.ready) return null;
+    const t = a.t;
+    const lv = Math.min(3, level);
+    const peak = 0.055 + lv * 0.022;
+    const q = 5 + lv * 4.5;
+
+    const nodes = [];
+    const layers = [
+      { base: 320, sweep: 190, rate: 0.13, gain: 1.0 },
+      { base: 760, sweep: 300, rate: 0.19, gain: 0.72 },
+      { base: 1250 + lv * 220, sweep: 420, rate: 0.29, gain: 0.44 + lv * 0.08 },
+    ];
+
+    for (const L of layers) {
+      const { s: src, g } = a.noise('voice');
+      const f = a.ctx.createBiquadFilter();
+      f.type = 'bandpass'; f.frequency.value = L.base; f.Q.value = q;
+      g.disconnect(); g.connect(f); f.connect(a.buses.voice);
+
+      // slow fade in — it should arrive the way a thought does, not the way a
+      // sound effect does
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(peak * L.gain, t + 1.6);
+
+      const lfo = a.ctx.createOscillator();
+      lfo.type = 'sine'; lfo.frequency.value = L.rate;
+      const ld = a.ctx.createGain(); ld.gain.value = L.sweep;
+      lfo.connect(ld); ld.connect(f.frequency);
+      lfo.start(t);
+
+      src.start(t);
+      nodes.push({ src, g, lfo });
+    }
+
+    return {
+      // THE HARD CUT. §13 asks for silence, not a fade — the absence is the
+      // point, and a release tail would soften it into an ending.
+      stop: () => {
+        const now = a.t;
+        for (const n of nodes) {
+          try {
+            n.g.gain.cancelScheduledValues(now);
+            n.g.gain.setValueAtTime(0, now);
+            n.src.stop(now + 0.02);
+            n.lfo.stop(now + 0.02);
+          } catch {}
+        }
+      },
+    };
+  }
+
+  // ── the goat ── §8
+  //
+  // From nowhere, every ninety seconds, never acknowledged. It has to be
+  // unmistakably an animal and unmistakably not part of the music, so it is
+  // the only sound here built on a SAWTOOTH with fast vibrato — the bleat is
+  // the vibrato, not the pitch. Everything else in this file is sine, square
+  // or noise, so it cannot be confused with any of them.
+  goatBleat() {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+
+    const o = a.ctx.createOscillator();
+    o.type = 'sawtooth';
+    const base = 250 + Math.random() * 70;
+    o.frequency.setValueAtTime(base, t);
+    // it falls away at the end, the way a bleat runs out of breath
+    o.frequency.setValueAtTime(base, t + 0.42);
+    o.frequency.exponentialRampToValueAtTime(base * 0.62, t + 0.72);
+
+    // THE BLEAT. ~22 Hz warble, far faster than any vibrato elsewhere here.
+    const lfo = a.ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.setValueAtTime(19 + Math.random() * 7, t);
+    const ld = a.ctx.createGain();
+    ld.gain.value = base * 0.09;
+    lfo.connect(ld); ld.connect(o.frequency);
+
+    // a throat, so it is not a synth tone with a wobble on it
+    const f = a.ctx.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = 2.2;
+
+    const g = a.ctx.createGain();
+    o.connect(f); f.connect(g); g.connect(a.buses.world);
+    a.env(g.gain, 0.11, 0.02, 0.70, t);
+
+    o.start(t); lfo.start(t);
+    o.stop(t + 0.78); lfo.stop(t + 0.78);
+  }
+
+  // §6.3: "cheerful hand-crank sound and a *very* brief muffled honk. Comedy,
+  // not gore." So: a ratchet built from short filtered-noise ticks at an
+  // accelerating rate, then one squashed square-wave honk lowpassed hard enough
+  // to sound like it happened in another room. Nothing else here ratchets, and
+  // nothing else honks.
+  grind() {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+
+    // the crank — eight ticks, speeding up
+    let at = t;
+    for (let i = 0; i < 8; i++) {
+      const { f } = this._noise('world', 'bandpass', 1400 - i * 60, 6,
+                                0.05, 0.001, 0.035, at);
+      f.Q.value = 7;
+      at += 0.085 - i * 0.006;
+    }
+
+    // the honk. Deliberately over before you can decide what it was.
+    const o = a.ctx.createOscillator();
+    o.type = 'square';
+    o.frequency.setValueAtTime(196, at + 0.03);
+    o.frequency.exponentialRampToValueAtTime(150, at + 0.14);
+    const lp = a.ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 520; lp.Q.value = 0.7;
+    const g = a.ctx.createGain();
+    o.connect(lp); lp.connect(g); g.connect(a.buses.world);
+    a.env(g.gain, 0.07, 0.008, 0.12, at + 0.03);
+    o.start(at + 0.03); o.stop(at + 0.2);
+  }
+
   thunder(intensity = 1) {
     const a = this.a; if (!a.ready) return;
     const t = a.t;

@@ -18,12 +18,15 @@ export class Hud {
     this.ammo = document.getElementById('ammo');
     this.brushSlot = document.getElementById('brushSlot');
     this.kitSlot = document.getElementById('kitSlot');
+    this.shakeSlot = document.getElementById('shakeSlot');
     this.kitNum = this.kitSlot?.querySelector('.kitNum');
     this.ammoMag = document.getElementById('ammoMag');
     this.ammoRes = document.getElementById('ammoRes');
     this.gloveSlot = document.getElementById('gloveSlot');
     this.gunSlot = document.getElementById('gunSlot');
+    this.dayLabel = document.getElementById('dayLabel');
     this.debug = document.getElementById('debug');
+    this._dayText = '';
 
     this._stamLen = this.stamFill.getTotalLength();
     this.stamFill.style.strokeDasharray = this._stamLen;
@@ -32,6 +35,17 @@ export class Hud {
   }
 
   update(dt, s) {
+    // day + clock. Written only when the string changes: this runs 60 times a
+    // second and the text changes once a second at most.
+    if (s.day !== undefined && this.dayLabel) {
+      const text = `DAY ${s.day}` + (s.clock ? `  ·  ${s.clock}` : '');
+      if (text !== this._dayText) {
+        this._dayText = text;
+        this.dayLabel.textContent = text;
+      }
+      this.dayLabel.classList.toggle('night', s.clock === 'NIGHT');
+    }
+
     // charge ring
     this.body.classList.toggle('charging', s.charging);
     this.body.classList.toggle('chargeMax', s.charging && s.charge >= 1);
@@ -59,6 +73,11 @@ export class Hud {
     this.gloveSlot.classList.toggle('active', s.weapon === 'glove');
     this.gunSlot.classList.toggle('active', gunOut);
     this.brushSlot?.classList.toggle('active', s.weapon === 'brush');
+    // Slots 5 and 6 highlight the same way the weapons do — the bar has to
+    // read as one row of six, not four weapons and two badges.
+    this.kitSlot?.classList.toggle('active', s.weapon === 'kit');
+    this.shakeSlot?.classList.toggle('active', s.weapon === 'shake');
+    this.shakeSlot?.classList.toggle('locked', (s.proteinShake ?? 0) <= 0);
 
     // carried healing shakes
     if (this.kitSlot) {

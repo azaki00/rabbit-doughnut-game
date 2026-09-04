@@ -45,6 +45,10 @@ export class Settings {
     // catching 400 rabbits is not a reasonable way to spend an afternoon.
     this._addHeading('DEV TOOLS');
     this._addAction('Grant coins', '+10,000c', () => this.onDevCoins?.(10000));
+    // Wiping is a dev tool, not a player-facing 'new game': there is no
+    // confirmation, and it is deliberately parked under DEV TOOLS where
+    // nobody lands by accident.
+    this._addAction('Wipe save', 'Delete', () => this.onWipeSave?.());
 
     // RESUME is a real user gesture, which is the only reliable moment to
     // re-acquire pointer lock. close() alone must NOT try to lock, or closing

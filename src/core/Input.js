@@ -27,6 +27,8 @@ const BINDS = {
   Digit2: 'slot2',
   Digit3: 'slot3',
   Digit4: 'slot4',
+  Digit5: 'slot5',
+  Digit6: 'slot6',
 };
 
 export class Input {
@@ -36,6 +38,12 @@ export class Input {
     this.pressed = Object.create(null);   // edge, cleared each fixed step
     this.mouseDX = 0;
     this.mouseDY = 0;
+    // Accumulated wheel notches this step: +1 per notch down (next slot),
+    // -1 per notch up. Accumulated rather than latched because a fast flick
+    // delivers several events inside one frame and every one of them should
+    // count — a wheel that drops notches feels broken in a way a wheel that
+    // moves two slots does not.
+    this.wheel = 0;
     this.lmb = false;
     this.lmbDown = false;                 // edge
     this.lmbUp = false;                   // edge
@@ -111,6 +119,19 @@ export class Input {
       if (e.button === 2) this.rmb = false;
     });
     canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+    // ── the wheel cycles the six item slots ──
+    //
+    // Only while locked: with the cursor free the wheel belongs to whatever
+    // panel is open (the wardrobe scrolls), and stealing it there would make
+    // the skin list unusable. passive:false so the page cannot scroll under a
+    // game that has no scrollbar.
+    addEventListener('wheel', e => {
+      if (!this.locked) return;
+      e.preventDefault();
+      if (e.deltaY > 0) this.wheel += 1;
+      else if (e.deltaY < 0) this.wheel -= 1;
+    }, { passive: false });
   }
 
   // Re-acquiring the lock right after the user pressed Esc is refused
@@ -155,5 +176,6 @@ export class Input {
     this.pressed = Object.create(null);
     this.lmbDown = this.lmbUp = false;
     this.mouseDX = this.mouseDY = 0;
+    this.wheel = 0;
   }
 }

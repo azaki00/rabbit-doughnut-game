@@ -32,6 +32,7 @@ export class Controller {
     this.eyeHeight = MOVE.eyeStand;
 
     this.bob = new HeadBob();
+    this.speedMul = 1;   // external multiplier; see the raw-meat buff (§13)
     this.stamina = new Stamina();
 
     // external movement override (the lunge dash drives this)
@@ -197,9 +198,12 @@ export class Controller {
 
     this.stamina.update(dt, this.sprinting);
 
-    const maxSpeed = this.crouching ? MOVE.crouch
+    // speedMul is set from outside (currently only by the raw-meat buff, §13).
+    // It scales every gait, so crouching while buffed is still faster than
+    // crouching sober — the buff is a change to the body, not to one animation.
+    const maxSpeed = (this.crouching ? MOVE.crouch
                    : this.sprinting ? MOVE.sprint
-                   : MOVE.walk;
+                   : MOVE.walk) * this.speedMul;
 
     // ── wish direction, in the yaw plane ──
     _fwd.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));

@@ -485,10 +485,13 @@ export class Rabbit {
     if (!silent) this.voice?.squeal(this);
   }
 
+  // Removes the rabbit from the world. It does NOT dispose geometry or
+  // materials, and must not: RabbitMesh caches both across every rabbit, so
+  // disposing one Cottontail's haunch would blank the haunch of every other
+  // Cottontail on the map. The caches are page-lifetime by design — the whole
+  // field is replaced each morning, and re-uploading the same twelve boxes
+  // every day is exactly the cost the cache exists to avoid.
   dispose(scene) {
     scene.remove(this.obj);
-    this.obj.traverse(o => {
-      if (o.geometry) o.geometry.dispose();
-    });
   }
 }

@@ -136,6 +136,24 @@ export class Mating {
   // seconds until the next courtship may begin
   get nextIn() { return Math.max(0, this.cool); }
 
+  // Wipe every courtship and every heart. Called when the day rolls over and
+  // the whole field is replaced: the pairs hold direct references to rabbits,
+  // and nothing about removing a rabbit from the world marks it dead — so
+  // without this a pair keeps courting an object that is no longer in the
+  // scene, and its hearts hang in the air over nobody.
+  clear() {
+    for (const p of this.pairs) {
+      if (p.a) p.a.mate = null;
+      if (p.b) p.b.mate = null;
+    }
+    this.pairs.length = 0;
+    for (const h of this.hearts) {
+      this.group.remove(h.sprite);
+      h.sprite.material.dispose();
+    }
+    this.hearts.length = 0;
+  }
+
   _spawnHeart(at, big = false) {
     const s = new THREE.Sprite(this.heartMat.clone());
     s.position.copy(at);

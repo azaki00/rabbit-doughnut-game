@@ -51,3 +51,9 @@ ZIPPED/
 # Scratch work and local playtest recordings
 scratch/
 *.gif.tmp
+
+# Knowledge-graph output from `/graphify` — ~1.4 MB of derived data (graph.json,
+# graph.html, the extraction cache) rebuilt from source on demand. The manifest
+# and cache inside it are machine-local paths, so committing it would fight with
+# anyone else's copy rather than help them.
+graphify-out/
