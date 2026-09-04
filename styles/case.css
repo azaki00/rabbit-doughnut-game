@@ -24,6 +24,11 @@
   font-size: 13px; letter-spacing: .38em; font-weight: bold;
   opacity: .55; margin-bottom: 18px;
 }
+.caseFor {
+  text-align: center; margin: -10px 0 16px;
+  font-size: 11px; letter-spacing: .22em; text-transform: uppercase;
+  opacity: .45;
+}
 
 /* ── the reel ── */
 

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { loadModel } from './Loaders.js';
 
 // THE HEALING BOOTH.
 //
@@ -13,6 +14,12 @@ import * as THREE from 'three';
 // the better deal only if you actually take it INTO the fight. Buying two and
 // walking to the egg is the correct play; walking back here mid-fight is not.
 
+// The purpose-made shopkeeper. Donut Guy stood in until this arrived.
+const KEEPER_DIR = 'OBJECTS/shop-old-man/';
+const KEEPER_URL = KEEPER_DIR + 'model.obj';
+// its MTL is `materials.mtl`, not `model.mtl` — the usual trap
+const KEEPER_MTL = KEEPER_DIR + 'materials.mtl';
+
 export const HEAL = {
   fullPrice: 300,
   itemPrice: 150,
@@ -20,6 +27,22 @@ export const HEAL = {
   useRadius: 3.4,
   maxCarried: 4,
 };
+
+// The clinic is pitched in front of the Cottage — its own landmark on the far
+// side of the meadow, rather than one more counter crowded round the table.
+export function clinicSpot(world) {
+  const cottage = world.buildingSpots?.[1];
+  if (!cottage) return new THREE.Vector3(-4.6, 0, 3.2);
+  const len = Math.hypot(cottage.x, cottage.z) || 1;
+  // step back IN toward the meadow, so it faces the field and not the trees
+  const p = new THREE.Vector3(
+    cottage.x - (cottage.x / len) * 9,
+    0,
+    cottage.z - (cottage.z / len) * 9,
+  );
+  world.resolveHorizontal(p, 2.4);
+  return p;
+}
 
 export class HealingBooth {
   constructor(scene, world, position, sfx) {
@@ -36,6 +59,8 @@ export class HealingBooth {
 
     this.bobT = Math.random() * 10;
     this._build();
+    this._buildKeeperFallback();
+    this._loadKeeper();
 
     // it is a solid thing you can walk into
     world.colliders.push({ x: this.pos.x, z: this.pos.z, hw: 1.2, hd: 0.75 });
@@ -89,6 +114,40 @@ export class HealingBooth {
     this.root.add(this.glow);
   }
 
+  // THE OLD SHOP MAN.
+  // Stands at the end of the counter rather than behind it, so he reads as a
+  // person you walk up to and not as part of the furniture.
+  _buildKeeperFallback() {
+    const coat = new THREE.MeshStandardMaterial({ color: 0xe8e4da, roughness: .9, flatShading: true });
+    const skin = new THREE.MeshStandardMaterial({ color: 0xd8a883, roughness: .85, flatShading: true });
+
+    this.keeper = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.5, 4, 8), coat);
+    body.position.y = 0.72;
+    body.castShadow = true;
+    this.keeper.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 9, 7), skin);
+    head.position.y = 1.24;
+    head.castShadow = true;
+    this.keeper.add(head);
+
+    this.keeper.position.set(1.55, 0, 0.15);
+    this.root.add(this.keeper);
+  }
+
+  async _loadKeeper() {
+    const m = await loadModel(KEEPER_URL, { height: 1.55, mtl: KEEPER_MTL });
+    if (!m) { console.warn('[clinic] shop man unavailable, using fallback'); return; }
+    m.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    this.root.remove(this.keeper);
+    this.keeper = m;
+    // beside the counter, turned a few degrees toward the customer
+    this.keeper.position.set(1.6, 0, 0.2);
+    this.keeperYaw = -0.5;
+    this.keeper.rotation.y = this.keeperYaw;
+    this.root.add(m);
+  }
+
   canUse(playerPos) {
     return this.pos.distanceTo(playerPos) < HEAL.useRadius;
   }
@@ -100,6 +159,12 @@ export class HealingBooth {
     this.glow.intensity = 1.15 + Math.sin(this.bobT * 2.4) * 0.3;
     for (let i = 0; i < this.bottles.length; i++) {
       this.bottles[i].rotation.y = this.bobT * 0.6 + i * 1.2;
+    }
+    // he shifts his weight and glances about, the way a bored shopkeeper does
+    if (this.keeper) {
+      const yaw = this.keeperYaw ?? 0;
+      this.keeper.rotation.y = yaw + Math.sin(this.bobT * 0.55) * 0.28;
+      this.keeper.position.y = Math.abs(Math.sin(this.bobT * 1.3)) * 0.025;
     }
   }
 }

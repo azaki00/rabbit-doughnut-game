@@ -42,6 +42,75 @@ export class Controller {
     this.speed2D = 0;
     this.noiseRadius = 11;
     this.invertY = false;
+
+    // ── the fall ──
+    // Being thrown off a horse is the one time the camera stops being a
+    // floating eye and becomes a body that hits the ground. `tumble` runs a
+    // three-beat animation: airborne (spinning), the landing (a hard drop and
+    // a bounce), and getting back up (the view climbing back to eye height).
+    this.tumble = 0;          // seconds remaining
+    this.tumbleTotal = 0;
+    this.tumbleLanded = false;
+    this.tumbleSpin = 0;      // roll rate while airborne
+    this.tumbleRoll = 0;
+    this.tumblePitch = 0;
+    this.tumbleDrop = 0;      // how far the eye is below normal
+    this.onTumbleLand = null;
+  }
+
+  // Called when something throws you. `seconds` is the whole animation, from
+  // leaving the saddle to standing back up.
+  startTumble(seconds = 2.0) {
+    this.tumble = seconds;
+    this.tumbleTotal = seconds;
+    this.tumbleLanded = false;
+    this.tumbleSpin = (Math.random() < 0.5 ? -1 : 1) * (3.0 + Math.random() * 2.0);
+    this.tumbleRoll = 0;
+    this.tumblePitch = 0;
+    this.tumbleDrop = 0;
+  }
+
+  get tumbling() { return this.tumble > 0; }
+
+  _updateTumble(dt) {
+    if (this.tumble <= 0) return;
+    this.tumble = Math.max(0, this.tumble - dt);
+
+    if (!this.grounded && !this.tumbleLanded) {
+      // ── airborne ── spinning, pitching forward over the horse's head
+      this.tumbleRoll += this.tumbleSpin * dt;
+      this.tumblePitch = Math.min(1.15, this.tumblePitch + 2.6 * dt);
+      this.tumbleDrop = Math.min(0.35, this.tumbleDrop + 0.9 * dt);
+      return;
+    }
+
+    if (!this.tumbleLanded) {
+      // ── the landing ── face-first, and it hurts
+      this.tumbleLanded = true;
+      this.tumbleLandT = 0;
+      this.onTumbleLand?.();
+    }
+
+    // ── getting back up ──
+    // A short slump at the bottom, then a spring back to standing. Overshoot
+    // slightly on the way up so it reads as effort, not as a lerp.
+    this.tumbleLandT += dt;
+    const rise = Math.min(1, this.tumbleLandT / Math.max(0.35, this.tumble + this.tumbleLandT));
+    const settle = 1 - Math.pow(1 - rise, 3);
+    const overshoot = Math.sin(rise * Math.PI) * 0.10;
+
+    // slumped low on landing (eye almost at the grass), back to standing
+    this.tumbleDrop = THREE.MathUtils.lerp(1.05, -overshoot * 0.5, settle);
+    // rolled onto one side, righting itself
+    this.tumbleRoll = this.tumbleRoll * (1 - Math.min(1, 3.2 * dt));
+    // staring at the ground, then lifting the head
+    this.tumblePitch = THREE.MathUtils.lerp(0.95, 0, settle) - overshoot * 0.35;
+
+    if (this.tumble <= 0) {
+      this.tumbleRoll = 0;
+      this.tumblePitch = 0;
+      this.tumbleDrop = 0;
+    }
   }
 
   look(dx, dy, sens) {
@@ -64,8 +133,8 @@ export class Controller {
   }
 
   update(dt, input) {
-    const stunned = this.frozen > 0;
-    if (stunned) this.frozen -= dt;
+    const stunned = this.frozen > 0 || this.tumble > 0;
+    if (this.frozen > 0) this.frozen -= dt;
 
     // ── intent ──
     let f = 0, r = 0;
@@ -159,18 +228,26 @@ export class Controller {
       maxSpeed,
     });
 
+    this._updateTumble(dt);
+
     // noise radius drives rabbit hearing — §5.2
     this.noiseRadius = this.crouching ? 3.5 : this.sprinting ? 22 : (moving ? 11 : 2);
   }
 
-  // Where the camera actually sits this frame, bob included.
+  // Where the camera actually sits this frame, bob included — plus whatever
+  // the tumble is doing to it.
   applyToCamera(camera) {
     camera.position.set(
       this.pos.x + _right.x * this.bob.x,
-      this.pos.y + this.bob.y,
+      this.pos.y + this.bob.y - this.tumbleDrop,
       this.pos.z + _right.z * this.bob.x
     );
-    camera.rotation.set(this.pitch, this.yaw, this.bob.roll, 'YXZ');
+    camera.rotation.set(
+      this.pitch - this.tumblePitch,
+      this.yaw,
+      this.bob.roll + this.tumbleRoll,
+      'YXZ',
+    );
   }
 
   get forward() {

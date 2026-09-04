@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { LAYER_VIEWMODEL } from '../core/Engine.js';
+import { applySkinTo } from '../economy/applySkin.js';
 
 // THE TOOTHBRUSH — the melee weapon you start the game holding.
 //
@@ -76,10 +77,12 @@ export class Toothbrush {
     this.root.add(this.tool);
     this.root.traverse(o => o.layers.set(LAYER_VIEWMODEL));
 
-    this.root.scale.setScalar(1);
-    // held low and close, the way you hold something you are embarrassed by
-    this.restPos = new THREE.Vector3(0.20, -0.20, -0.32);
-    this.restRot = new THREE.Euler(0.22, -0.20, 0.30);
+    // A real toothbrush at a real 19cm is a splinter on screen. Held up into
+    // frame and scaled like a viewmodel prop, so you can actually see what you
+    // are attacking a rabbit with.
+    this.root.scale.setScalar(1.65);
+    this.restPos = new THREE.Vector3(0.17, -0.135, -0.26);
+    this.restRot = new THREE.Euler(0.34, -0.34, 0.42);
     this.root.position.copy(this.restPos);
     this.root.rotation.copy(this.restRot);
     this.root.visible = false;
@@ -114,6 +117,14 @@ export class Toothbrush {
     m.rotation.set(0, Math.PI, 0);
     this.tool = m;
     this.root.add(m);
+  }
+
+  // Cosmetic only (§17.5).
+  applySkin(inst) {
+    if (inst.collection && inst.collection !== 'brush') return;
+    applySkinTo(this.tool, inst);
+    this.root.traverse(o => o.layers.set(LAYER_VIEWMODEL));
+    this.equipped = inst;
   }
 
   get busy() { return this.swing > 0; }

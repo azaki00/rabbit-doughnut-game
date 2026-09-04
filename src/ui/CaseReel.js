@@ -1,4 +1,5 @@
-import { SKINS, TIERS, rollSkin, mintInstance, wearName } from '../economy/Skins.js';
+import { COLLECTIONS, TIERS, rollSkin, mintInstance, wearName } from '../economy/Skins.js';
+import { textureFor } from '../economy/SkinTextures.js';
 
 // Case opening — GAME_DESIGN.md §8.1
 //
@@ -19,8 +20,8 @@ const DURATION = 6.0;
 // easeOutQuint — extremely fast for the first second, then a long visible crawl
 const ease = t => 1 - Math.pow(1 - t, 5);
 
-function fillerSkin() {
-  return rollSkin();
+function fillerSkin(collection) {
+  return rollSkin(collection);
 }
 
 export class CaseReel {
@@ -34,6 +35,7 @@ export class CaseReel {
     this.el.innerHTML = `
       <div class="caseBox">
         <div class="caseTitle">MEADOW CASE</div>
+        <div class="caseFor"></div>
         <div class="reelWrap">
           <div class="marker"></div>
           <div class="reelStrip"></div>
@@ -46,6 +48,8 @@ export class CaseReel {
     document.body.appendChild(this.el);
 
     this.strip = this.el.querySelector('.reelStrip');
+    this.title = this.el.querySelector('.caseTitle');
+    this.forLine = this.el.querySelector('.caseFor');
     this.result = this.el.querySelector('.caseResult');
     this.odds = this.el.querySelector('.caseOdds');
     this.closeBtn = this.el.querySelector('.caseClose');
@@ -56,35 +60,45 @@ export class CaseReel {
       .join('');
   }
 
-  _ticket({ skin, tier, float }) {
+  // The ticket shows the SKIN'S ACTUAL PAINT, not a gradient approximating it.
+  // The same canvas that ends up on the weapon is drawn into the ticket, so
+  // what you see going past is what you are about to own.
+  _ticket({ skin, tier }) {
     const t = TIERS[tier];
     const d = document.createElement('div');
     d.className = 'ticket';
     d.style.setProperty('--tier', t.color);
+    const { dataUrl } = textureFor(skin);
     d.innerHTML = `
-      <div class="tGlove" style="background:linear-gradient(160deg,#${skin.color.toString(16).padStart(6,'0')},#${skin.accent.toString(16).padStart(6,'0')})"></div>
+      <div class="tGlove" style="background-image:url(${dataUrl});background-size:cover"></div>
       <div class="tName">${skin.name}</div>
       <div class="tBar"></div>`;
     return d;
   }
 
-  open() {
+  open(collection = 'glove') {
     if (this.running) return null;
     this.running = true;
+    this.collection = collection;
+
+    const col = COLLECTIONS[collection] ?? COLLECTIONS.glove;
+    this.title.textContent = col.case;
+    this.forLine.textContent = col.weapon;
+
     this.el.classList.add('show');
     this.result.textContent = '';
     this.result.className = 'caseResult';
     this.closeBtn.classList.remove('show');
 
     // decide the winner FIRST
-    const win = rollSkin();
+    const win = rollSkin(collection);
     const instance = mintInstance(win);
 
     // build the strip
     this.strip.innerHTML = '';
     const items = [];
     for (let i = 0; i < COUNT; i++) {
-      items.push(i === WIN_INDEX ? win : fillerSkin());
+      items.push(i === WIN_INDEX ? win : fillerSkin(collection));
     }
     for (const it of items) this.strip.appendChild(this._ticket(it));
 

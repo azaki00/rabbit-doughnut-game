@@ -161,6 +161,84 @@ export function buildRabbit(type) {
   tail.castShadow = true;
   haunch.add(tail);
 
+  // ── MUTATIONS ──
+  // Only ever additive, and only on mutants. Every one of these hangs off an
+  // existing joint, so the gait keeps working exactly as it does on a normal
+  // rabbit — a mutant with four ears still bounds correctly, it just looks
+  // like something that should not be bounding.
+  if (type.mutant) {
+    // extra ear pairs, sprouting out of the back rather than the head
+    for (let e = 0; e < (type.extraEars ?? 0); e++) {
+      for (const s of [-1, 1]) {
+        const len = type.earLen * (0.5 + Math.random() * 0.9);
+        const ear = new THREE.Mesh(box(type.earWidth * 0.8, len, type.earWidth * 0.4), matEar);
+        ear.position.set(
+          s * B * (0.25 + Math.random() * 0.3),
+          B * 0.5 + len * 0.4,
+          -L * (0.05 + e * 0.14),
+        );
+        ear.rotation.set((Math.random() - 0.5) * 0.9, 0, s * (0.3 + Math.random() * 0.6));
+        ear.castShadow = true;
+        haunch.add(ear);
+      }
+    }
+
+    // too many eyes, scattered around the skull
+    for (let i = 0; i < (type.extraEyes ?? 0); i++) {
+      const eye = new THREE.Mesh(box(B * 0.08, B * 0.11, B * 0.09), matEye);
+      const a = Math.random() * Math.PI * 2;
+      eye.position.set(
+        Math.cos(a) * B * 0.30,
+        B * (0.02 + Math.random() * 0.3),
+        Math.sin(a) * B * 0.22 + B * 0.08,
+      );
+      head.add(eye);
+    }
+
+    // lumps along the spine
+    for (let i = 0; i < (type.lumps ?? 0); i++) {
+      const r = B * (0.14 + Math.random() * 0.24);
+      const lump = new THREE.Mesh(new THREE.SphereGeometry(r, 5, 4), matBelly);
+      lump.position.set(
+        (Math.random() - 0.5) * B * 0.6,
+        B * (0.35 + Math.random() * 0.3),
+        -L * 0.35 + Math.random() * L * 0.5,
+      );
+      lump.castShadow = true;
+      haunch.add(lump);
+    }
+
+    // and, occasionally, a second head on a neck of its own
+    if (type.twoHeads) {
+      const h2 = new THREE.Group();
+      h2.position.set(B * 0.42, B * 0.34, L * 0.22);
+      h2.rotation.z = -0.35;
+      chest.add(h2);
+      const skull2 = new THREE.Mesh(box(B * 0.5, B * 0.48, B * 0.58), matMain);
+      skull2.castShadow = true;
+      h2.add(skull2);
+      for (const s of [-1, 1]) {
+        const eye = new THREE.Mesh(box(B * 0.07, B * 0.11, B * 0.09), matEye);
+        eye.position.set(s * B * 0.24, B * 0.05, B * 0.14);
+        h2.add(eye);
+      }
+      const e2Len = type.earLen * 0.7;
+      for (const s of [-1, 1]) {
+        const ear = new THREE.Mesh(box(type.earWidth * 0.85, e2Len, type.earWidth * 0.4), matEar);
+        ear.position.set(s * B * 0.18, B * 0.24 + e2Len * 0.5, 0);
+        ear.rotation.z = s * 0.2;
+        h2.add(ear);
+      }
+      root.userData.secondHead = h2;
+    }
+
+    // one side sits lower than the other — it limps
+    if (type.limpSide) {
+      const leg = hindLegs[type.limpSide < 0 ? 0 : 1];
+      leg.hip.scale.y = 0.62 + Math.random() * 0.25;
+    }
+  }
+
   if (type.scale) root.scale.setScalar(type.scale);
 
   return {

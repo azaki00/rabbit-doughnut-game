@@ -177,7 +177,38 @@ animation.
 | `Pickups.js` | Hidden coins |
 | `Carrots.js` | The hamster trader, and the carrots that freeze rabbits in place |
 | `Horses.js` | Four wild horses. Mount with E, ride for 4s, get thrown |
+| `HealingBooth.js` | The clinic and the old shop man. 300c full heal, 150c carried shake |
+| `Chickens.js` | The Sovereign's phase-two chickens |
+| `MeatDrops.js` | Slabs dropped by shot/brushed rabbits, collected for coins |
+| `Impacts.js` | Pooled bullet-mark decals, 4s life |
 | `EggBoss.js` | The Sunny-Side Sovereign — sealed shell phase and the boss itself |
+
+### `economy/`
+
+| File | Responsibility |
+|---|---|
+| `Skins.js` | Three collections (glove/gun/brush), tiers, float, rolling |
+| `SkinTextures.js` | The 15 canvas pattern generators and their roughness maps |
+| `applySkin.js` | Paints an instance onto a weapon. Cosmetic only (§17.5) |
+
+**Skins are patterns, not tints.** Each names a generator and a palette; the
+canvas is drawn once, cached by skin id, and used for both the material and the
+case-reel ticket preview.
+
+`applySkinTo()` **re-projects UVs before painting**. Authored UVs cannot be
+trusted: the glove packs every face into one corner of a solid-colour atlas
+(pattern → one stretched texel), and raw OBJ coordinates are in whatever units
+the exporter used, so projecting from local space put the toothbrush's UVs at
+−75. The projection happens in the ROOT's space with a shared density, which
+makes every weapon tile identically whatever its pipeline did.
+
+### `rabbits/` — courtship
+
+`Mating.js` runs at most one courtship at a time and drives it through a `mate`
+field on the Rabbit, which outranks the carrot `lure` in `_think`. `mutate.js`
+builds the offspring type: **value is capped at 1000c and scale is derived from
+the value**, so two mutants breeding cannot compound, and you can price a mutant
+by looking at it.
 
 ### Riding
 

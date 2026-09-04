@@ -11,7 +11,7 @@ import { HopGait } from './HopGait.js';
 export const ST = {
   GRAZE: 'GRAZE', ALERT: 'ALERT', FLEE: 'FLEE',
   EVADE: 'EVADE', CAUGHT: 'CAUGHT', CIRCLE: 'CIRCLE',
-  LURED: 'LURED',
+  LURED: 'LURED', MATE: 'MATE',
 };
 
 let NEXT_ID = 1;
@@ -136,6 +136,27 @@ export class Rabbit {
     // A dropped carrot outranks everything except being caught. Even a fleeing
     // rabbit will break off for it — that is what makes it worth 5c.
     // The Black Rabbit is not interested in carrots.
+    // ── courtship ──
+    // Outranks the carrot: a rabbit that has found a partner does not care
+    // about vegetables. Mating.js sets `mate` to the point it should be
+    // barging into, which oscillates, so the pair bump repeatedly.
+    if (this.mate && !t.circler) {
+      this.state = ST.MATE;
+      const to = _v.subVectors(this.mate, this.obj.position).setY(0);
+      const dist = to.length();
+      this.headYawTarget = 0;
+      // A tight dead zone on purpose. At 0.28 the whole barge oscillation fell
+      // inside it and the pair just stood at a polite fixed distance.
+      if (dist > 0.06) {
+        this.desiredYaw = Math.atan2(-to.x, -to.z);
+        this.targetSpeed = Math.min(t.speed, 0.5 + dist * 3.2);
+      } else {
+        this.targetSpeed = 0;
+        this.desiredYaw = this.yaw;
+      }
+      return;
+    }
+
     if (this.lure && !t.circler) {
       this.state = ST.LURED;
       const to = _v.subVectors(this.lure, this.obj.position).setY(0);

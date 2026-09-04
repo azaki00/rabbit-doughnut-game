@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { LAYER_VIEWMODEL } from '../core/Engine.js';
+import { applySkinTo } from '../economy/applySkin.js';
 
 // The Culling Piece — a break-action varmint gun.
 //
@@ -152,6 +153,20 @@ export class Gun {
     this.root.position.copy(this.restPos);
     this.root.rotation.copy(this.restRot);
     this.root.visible = false;
+  }
+
+  // Cosmetic only (§17.5). The flash rig keeps its own materials — a skinned
+  // muzzle flash is not a skin, it is a bug.
+  applySkin(inst) {
+    if (inst.collection && inst.collection !== 'gun') return;
+    // Detach the flash rig first. It is additive, unlit and depth-write-off;
+    // repainting it as painted steel would turn the muzzle flash into a small
+    // grey cone welded to the barrel.
+    this.gun.remove(this.muzzle);
+    applySkinTo(this.gun, inst);
+    this.gun.add(this.muzzle);
+    this.root.traverse(o => o.layers.set(LAYER_VIEWMODEL));
+    this.equipped = inst;
   }
 
   get busy() { return this.reloading > 0; }

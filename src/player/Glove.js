@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { LAYER_VIEWMODEL } from '../core/Engine.js';
 import { STAM } from './Stamina.js';
 import { loadModel } from '../world/Loaders.js';
+import { applySkinTo } from '../economy/applySkin.js';
 
 // The red glove — GAME_DESIGN.md §4
 //
@@ -132,16 +133,11 @@ export class Glove {
   }
 
   // Re-material for a skin — cosmetic only, never touches the numbers (§17.5).
+  // The pattern and the wear both come from applySkinTo; see economy/Skins.js.
   applySkin(inst) {
-    this.hand?.traverse(o => {
-      if (!o.isMesh) return;
-      o.material.color.setHex(inst.color);
-      o.material.metalness = inst.metal;
-      // float drives visible wear: scuffed, desaturated, darkened
-      o.material.roughness = 0.45 + inst.float * 0.5;
-      const dim = 1 - inst.float * 0.35;
-      o.material.color.multiplyScalar(dim);
-    });
+    if (inst.collection && inst.collection !== 'glove') return;
+    applySkinTo(this.hand, inst);
+    this.hand?.traverse(o => o.layers.set(LAYER_VIEWMODEL));
     this.equipped = inst;
   }
 

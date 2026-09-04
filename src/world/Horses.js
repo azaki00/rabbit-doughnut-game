@@ -32,6 +32,7 @@ export const HORSE = {
   buckStun: 1.5,
   buckForward: 8.0,
   buckUp: 6.2,
+  tumbleTime: 2.3,        // thrown → hit the ground → back on your feet
 
   fleeTime: 4.5,
   fleeSpeed: 9.5,
@@ -323,6 +324,12 @@ export class Horses {
     player.pos.y += 0.3;
     player.vel.set(fx * HORSE.buckForward, HORSE.buckUp, fz * HORSE.buckForward);
     player.grounded = false;
+
+    // and the animation: spin through the air, land face-first, get back up
+    player.startTumble?.(HORSE.tumbleTime);
+    if (player.onTumbleLand === null || player.onTumbleLand === undefined) {
+      player.onTumbleLand = () => this.sfx?.bodyFall?.();
+    }
 
     h.state = ST.FLEE;
     h.stateT = HORSE.fleeTime;

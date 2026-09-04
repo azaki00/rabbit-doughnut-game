@@ -10,6 +10,7 @@ import { Toothbrush, BRUSH } from "./player/Toothbrush.js";
 import { Greybox } from "./world/Greybox.js";
 import { Rabbit, ST } from "./rabbits/Rabbit.js";
 import { TYPES, SPAWNABLE } from "./rabbits/types.js";
+import { Mating, MATE } from "./rabbits/Mating.js";
 import { AudioEngine } from "./audio/AudioEngine.js";
 import { RabbitVoice } from "./audio/RabbitVoice.js";
 import { Sfx } from "./audio/Sfx.js";
@@ -25,7 +26,8 @@ import { Chickens, CHICKEN } from "./world/Chickens.js";
 import { MeatDrops } from "./world/MeatDrops.js";
 import { Impacts } from "./world/Impacts.js";
 import { Music } from "./audio/Music.js";
-import { HealingBooth, HEAL } from "./world/HealingBooth.js";
+import { HealingBooth, HEAL, clinicSpot } from "./world/HealingBooth.js";
+import { Sky } from "./world/Sky.js";
 
 // HARE & GLAZE — M1 "Feel" + the M2 saltation gait.
 // The one question this build exists to answer: does the lunge feel good?
@@ -101,16 +103,43 @@ const state = {
 };
 const rabbits = [];
 
-// ── the chest: where glove skins are unlocked ── §9.1
-// Beside the cooking table, always visible in the world.
+// ── the three chests: where skins are unlocked ── §9.1
+// A row of them beside the cooking table, always visible in the world. One per
+// weapon, with entirely separate skin pools — walking to the middle chest is a
+// decision about which 250c you are spending, not a formality.
+// the chests' placards turn to face the middle of the map
+const TABLE_POS_EARLY = new THREE.Vector3(0, 0, 9);
 const CASE_COST = 250;
-const chest = new Chest(engine.scene, new THREE.Vector3(3.6, 0, 1.9));
+// Spread along an arc around the east side of the table. They need real space
+// between them: the interaction radius is 2.6m, so at the original 1.75m
+// spacing all three were live at once and picking one was a coin toss.
+const CHEST_ROW = [
+  { kind: "glove", label: "MEADOW CASE", tint: 0xe0596f, x: 3.4, z: 5.2 },
+  { kind: "gun", label: "CULLING CASE", tint: 0x8fb7d9, x: 6.2, z: 2.6 },
+  { kind: "brush", label: "ENAMEL CASE", tint: 0x3ec8a8, x: 7.4, z: -1.4 },
+];
+const chests = CHEST_ROW.map((c) => {
+  const ch = new Chest(engine.scene, new THREE.Vector3(c.x, 0, c.z), {
+    kind: c.kind,
+    label: c.label,
+    tint: c.tint,
+  });
+  ch.faceTarget = TABLE_POS_EARLY;
+  return ch;
+});
 const reel = new CaseReel(sfx);
 const promptEl = document.getElementById("prompt");
 
+// Which weapon a skin lands on is decided by the case it came out of.
+const SKIN_TARGET = {
+  glove: (inst) => glove.applySkin(inst),
+  gun: (inst) => gun.applySkin(inst),
+  brush: (inst) => brush.applySkin(inst),
+};
+
 reel.onFinish = (inst) => {
   state.skins.push(inst);
-  glove.applySkin(inst); // equip it immediately
+  SKIN_TARGET[inst.collection]?.(inst); // equip it immediately
 };
 reel.onHide = () => {
   if (!input.locked) return;
@@ -127,6 +156,10 @@ horses.onScare = (origin, radius) => {
   for (const r of rabbits) r.scare(origin, radius, player, { silent: true });
 };
 
+// ── sky, clouds and weather ──
+// Clear and blue until the Sovereign is out, then it is not.
+const sky = new Sky(engine, sfx);
+
 // ── bullet marks ── every shot leaves something behind for 4 seconds
 const impacts = new Impacts(engine.scene);
 
@@ -142,14 +175,9 @@ meat.onCollect = (value, label) => {
 const chickens = new Chickens(engine.scene, world, sfx);
 
 // ── the healing booth ── the only way to get health back
-// Stands beside the cooking table, in the spot the carrot stall used to have
-// before it moved out behind the house.
-const healing = new HealingBooth(
-  engine.scene,
-  world,
-  new THREE.Vector3(-4.6, 0, 3.2),
-  sfx,
-);
+// Pitched out in front of the Cottage with the old shop man beside it, so the
+// clinic is its own destination rather than a fourth counter round the table.
+const healing = new HealingBooth(engine.scene, world, clinicSpot(world), sfx);
 
 function healToFull() {
   state.health = 1;
@@ -243,6 +271,7 @@ boss.onPhaseTwo = () => {
 
 boss.onSummon = () => {
   music.play("boss");
+  sky.strike();          // the sky goes off the moment the shell breaks
 };
 
 boss.onDeath = () => {
@@ -258,6 +287,20 @@ boss.onDeath = () => {
   );
   bossBar.classList.remove("show");
   document.getElementById("shakeSlot")?.classList.remove("locked");
+};
+
+// ── courtship and mutants ────────────────────────────────────────────────────
+// Two rabbits left alone will pair up, spend ten visible seconds at it, and
+// leave you something considerably larger than either of them.
+const mating = new Mating(engine.scene, world, sfx);
+mating.onBorn = (typeDef, at) => {
+  const r = new Rabbit(typeDef, at.clone(), world, voice);
+  rabbits.push(r);
+  engine.scene.add(r.obj);
+  hud.say(`A ${typeDef.name} was born  (${typeDef.value}c)`, "bad", 3.2);
+  console.log(
+    `[mutant] ${typeDef.name} scale ${typeDef.scale.toFixed(2)} value ${typeDef.value}`,
+  );
 };
 
 // ── spawning ─────────────────────────────────────────────────────────────────
@@ -580,14 +623,18 @@ function updateBlackRabbit(dt) {
     audio.duck("voice", 1 - blackNear * 0.75);
     audio.duck("world", 1 - blackNear * 0.5);
   }
-  // desaturate the fog toward grey as it closes
+  // Desaturate the fog toward grey as it closes. Lerps from whatever the
+  // weather set this frame, not from a hardcoded blue — otherwise the Black
+  // Rabbit would quietly undo the storm.
   const f = engine.scene.fog;
-  f.color.setRGB(
-    THREE.MathUtils.lerp(0.784, 0.42, blackNear),
-    THREE.MathUtils.lerp(0.894, 0.42, blackNear),
-    THREE.MathUtils.lerp(0.949, 0.46, blackNear),
-  );
-  engine.scene.background.copy(f.color);
+  const base = sky.baseFog;
+  if (base && blackNear > 0.005) {
+    f.color.setRGB(
+      THREE.MathUtils.lerp(base.r, 0.42, blackNear),
+      THREE.MathUtils.lerp(base.g, 0.42, blackNear),
+      THREE.MathUtils.lerp(base.b, 0.46, blackNear),
+    );
+  }
 }
 
 // ── loop ─────────────────────────────────────────────────────────────────────
@@ -658,6 +705,10 @@ function step(dt) {
     spawn(key, Math.cos(a) * d, Math.sin(a) * d);
   }
 
+  // Courtship runs BEFORE the carrot lure is assigned, because a rabbit in a
+  // courtship must not have its `lure` overwritten out from under it.
+  mating.update(dt, rabbits);
+
   // ── carrots ──
   carrots.update(dt, rabbits);
   for (const r of rabbits) {
@@ -693,6 +744,9 @@ function step(dt) {
 
   horses.update(dt);
   healing.update(dt);
+  // The storm is on for exactly as long as the Sovereign is out of its shell.
+  sky.setStorm(boss.alive && boss.awake, boss.rage);
+  sky.update(dt, engine.camera);
   impacts.update(dt);
   meat.update(dt, player.pos);
   chickens.update(dt, player);
@@ -860,25 +914,36 @@ function step(dt) {
   }
 
   // ── chest interaction ──
-  const canUse =
-    !reel.visible &&
-    !horsePrompt &&
-    !atHealing &&
-    chest.canUse(player.pos, player.forward);
-  chest.update(dt, canUse);
+  // Whichever of the three you are actually looking at wins; the other two
+  // dim back down.
+  let openChest = null;
+  if (!reel.visible && !horsePrompt && !atHealing) {
+    let bestD = Infinity;
+    for (const ch of chests) {
+      if (!ch.canUse(player.pos, player.forward)) continue;
+      const d = ch.root.position.distanceTo(player.pos);
+      if (d < bestD) {
+        bestD = d;
+        openChest = ch;
+      }
+    }
+  }
+  for (const ch of chests) ch.update(dt, ch === openChest);
+  const canUse = !!openChest;
   pickups.update(dt, player.pos);
 
   if (canUse && !atTable && !atTrader) {
     const afford = state.coins >= CASE_COST;
     promptEl.className = "show" + (afford ? "" : " cant");
-    promptEl.innerHTML = `<kbd>E</kbd>Open a case &nbsp;<span class="cost">${CASE_COST}c</span>`;
+    promptEl.innerHTML =
+      `<kbd>E</kbd>Open the ${openChest.label} &nbsp;<span class="cost">${CASE_COST}c</span>`;
     if (input.hit("interact")) {
       if (afford) {
         state.coins -= CASE_COST;
-        chest.pop();
+        openChest.pop();
         sfx.chestOpen();
         document.exitPointerLock?.();
-        reel.open();
+        reel.open(openChest.kind);
       } else {
         sfx.deny();
         hud.say("Not enough coins", "bad");
@@ -955,12 +1020,13 @@ carrot ${state.carrots} held, ${carrots.active.length} down   lured ${rabbits.fi
 weapon ${weapon}  ammo ${gun.ammo}/${gun.reserve}${gun.reloading > 0 ? " RELOADING" : ""}
 caught ${state.caught}  shot ${state.shot}  coins ${state.coins}  rabbits ${rabbits.length}
 near   ${near ? `${near.r.type.name} ${near.d.toFixed(1)}m ${near.r.state} p${near.r.gait.phase.toFixed(2)}${near.r.gait.airborne ? " AIR" : ""}` : "-"}
-black  ${blackNear.toFixed(2)}
+black  ${blackNear.toFixed(2)}   courting ${mating.courting}  hearts ${mating.hearts.length}  born ${mating.born}  next ${mating.nextIn.toFixed(0)}s
 boss   ${boss.alive ? `${boss.state} shell ${boss.shell} hp ${Math.ceil(boss.health)} rage ${boss.rage.toFixed(2)}` : "DEAD"}
 hammer ${hammer.owned ? "OWNED" : "not bought"}
 horse  ${horses.riding ? `RIDING ${horses.secondsLeft.toFixed(1)}s` : horses.list.map((h) => h.state[0]).join("")}
 chick  ${chickens.liveCount} live   meat ${meat.pending} on the ground   marks ${impacts.live.length}
 music  ${music.current ?? "-"}   shake ${state.proteinShake}
+storm  ${sky.storm.toFixed(2)}  rain ${sky.rain.visible ? "on" : "off"}  strike in ${sky.strikeIn.toFixed(1)}s
 heal   ${(state.health * 100).toFixed(0)}%   kits ${state.healKits}   weapon4 ${brush.owned ? "toothbrush" : "-"}`,
     );
   }
@@ -1051,7 +1117,7 @@ window.GAME = {
   spawn,
   THREE,
   settings,
-  chest,
+  chests,
   reel,
   pickups,
   boss,
@@ -1059,6 +1125,8 @@ window.GAME = {
   carrots,
   horses,
   chickens,
+  sky,
+  mating,
   meat,
   healing,
   brush,

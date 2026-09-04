@@ -37,9 +37,13 @@ Server. Chrome or Edge recommended.
 | `Ctrl`                   | Crouch — cuts your noise radius by 70%               |
 | `Space`                  | Jump                                                 |
 | **Hold `LMB` → release** | **Lunge grab**                                       |
-| `1` / `2` / `3`          | Glove / Gun / Hammer                                 |
+| `1` `2` `3` `4`          | Glove / Gun / Hammer / Toothbrush                    |
 | `Q`                      | Cycle weapon                                         |
-| `E`                      | Interact — buy at the table, open cases at the chest |
+| `E`                      | Interact — mount a horse, buy, open a case, heal     |
+| `B`                      | Buy a healing shake (at the clinic)                  |
+| `H`                      | Drink a carried shake                                |
+| `G`                      | Drop a carrot                                        |
+| `R`                      | Reload                                               |
 | `F1`                     | Debug readout                                        |
 | `Esc`                    | Settings                                             |
 
@@ -129,6 +133,21 @@ with a telegraphed ground pound, and past a certain point it starts throwing
 yolk. It gets faster and hits harder the more damage it has taken. The yolk is
 its weak point, worth 2.2× damage.
 
+### Phase two — the chickens
+
+Below **half health** it stops relying on reach and starts **throwing live
+chickens** at you. They arc out, land short, and run you down; on contact one
+detonates into feathers and takes a bite out of your health.
+
+They are the answer to kiting. The slam only threatens you within 5 m and the
+yolk is dodgeable, so before this the correct play against a wounded boss is to
+back away and shoot. Chickens follow you when you do — and the counterplay to a
+chicken is one shell, which costs you the two seconds of reload you wanted to
+spend on the boss.
+
+Kill it and it drops a **Protein Shake**. What that is for has not been decided
+yet. It is counted, it is yours, and it is waiting.
+
 It is the only thing in the game that can meaningfully hurt you.
 
 ---
@@ -147,16 +166,38 @@ gone by the time you land.
 
 ---
 
-## Glove skins
+## Skins — three cases
 
 Straight out of the Counter-Strike playbook, and honest about it.
 
-The chest sits beside the cooking table. Cases cost **250c** and open with a
-horizontal spinning ticket reel: six seconds, quintic ease-out, a tick each time
-a ticket crosses the marker so the audio _is_ the deceleration curve, and a
-deliberately off-centre landing so near-misses feel like near-misses.
+**Three chests** stand in a row beside the cooking table, each with its own case
+and its own pool. Nothing crosses over, so which one you walk up to is a real
+decision about where your 250c goes:
 
-**19 skins across 7 rarity tiers**, with a wear/float value so no two drops are
+| Chest            | Case             | Paints                |
+| ---------------- | ---------------- | --------------------- |
+| 🧤 Meadow Case   | the Red Glove    | 19 skins              |
+| 🔫 Culling Case  | the Culling Piece | 19 skins             |
+| 🪥 Enamel Case   | the Toothbrush   | 19 skins              |
+
+Cases open with a horizontal spinning ticket reel: six seconds, quintic
+ease-out, a tick each time a ticket crosses the marker so the audio _is_ the
+deceleration curve, and a deliberately off-centre landing so near-misses feel
+like near-misses.
+
+### They are patterns, not tints
+
+A skin is never a recolour. Every one names a **procedural pattern** — fade,
+camo, hydro-dip marbling, case-hardened crackle, circuit traces, fish scales,
+star fields, thrown paint, hand-drawn doodles, corrosion, banded chrome,
+nebulae — drawn to a canvas at load time from a palette, seeded off the skin's
+id so it is identical in the case, in your hand, and in anyone else's game.
+
+Each one also emits a matching **roughness map**, so the pattern changes how the
+light sits on the material rather than only its colour. The reel tickets show
+the real paint, not an approximation of it.
+
+**57 skins across 7 rarity tiers**, with a wear/float value so no two drops are
 identical — a Factory New Bloodstained Velvet at 0.041 is a different item from a
 Battle-Scarred one. The odds are shown openly on the machine.
 
@@ -168,13 +209,78 @@ Battle-Scarred one. The odds are shown openly on the machine.
 | Restricted         | 0.64%      |
 | Classified         | 0.26%      |
 | Covert             | 0.20%      |
-| ★ **Golden Glove** | **0.026%** |
+| ★ **Rare Special** | **0.026%** |
 
-**Skins are cosmetic. Always.** The glove's catching stats never change —
+**Skins are cosmetic. Always.** Catching, shooting and brushing never change —
 otherwise gambling becomes mandatory and the game becomes a grind.
 
 There are also **28 coins hidden** around the meadow, tucked behind rocks, along
 the blind sides of fences, under the cooking table, and out in the far corners.
+
+---
+
+## The toothbrush
+
+You start the game holding one. It is not good.
+
+It is, however, **fast and silent**, and that gives it a real place between the
+other two: the glove catches a rabbit whole for full value but needs a lunge;
+the gun kills anything at range but ruins the meat and empties the field for
+40 m. The toothbrush kills at arm's length, keeps **75%** of the meat, and
+carries barely five metres — so nothing else in the field finds out.
+
+Its niche is the rabbit that has stopped for a carrot.
+
+---
+
+## Meat on the ground
+
+Shooting or brushing a rabbit no longer pays you. It drops a **slab of meat**
+where it fell, and you are paid when you walk over and pick it up.
+
+This is the point of the gun's whole cost structure. The report empties the
+field for 40 m, and now the shot also forces you to walk *into* that emptied
+space to collect — so the easy option makes you commit, out in the open, while
+everything worth catching is still running.
+
+Every slab is the size and colour of what it came off: a Jack leaves a long dark
+cut, a Lop leaves a pale fatty one, and the Black Rabbit leaves something you
+probably should not eat.
+
+---
+
+## Rabbits breed
+
+Left alone, two grazing rabbits find each other. **Hearts appear over the pair
+for ten seconds** while they barge into one another, the hearts pop, and what
+walks out is bigger than either of them.
+
+Mutants come with re-rolled proportions, extra ear pairs sprouting from the
+back, too many eyes, lumps along the spine, mismatched legs, and occasionally a
+second head. They are slow, which is what stops them being a punishment.
+
+**Size and price are the same number seen twice.** A mutant's value is capped at
+**1000c** and its scale is derived directly from that value, so you can price
+one by looking at it — and two mutants breeding cannot compound into a
+building-sized rabbit worth more than the boss. One is born roughly **every 90
+seconds**, and only one courtship runs at a time.
+
+Scaring either parent cancels it. So the gun, which frightens everything within
+40 m, cannot be fired anywhere near a pair you wanted to keep — and "clear the
+field fast" becomes a real argument against "leave them and come back".
+
+---
+
+## The clinic
+
+Health is otherwise unrecoverable. The **healing booth** is pitched in front of
+the Cottage with the old shop man standing beside it:
+
+- **300c** — patched up on the spot, back to full
+- **150c** — one shake to carry, drunk with `H` wherever you are, for half
+
+The carried one costs half as much and heals half as much, which makes it the
+better deal only if you actually take it *into* the fight.
 
 ---
 
@@ -195,6 +301,16 @@ two layers, so the tiling never becomes obvious at distance.
 
 ---
 
+## Music
+
+The meadow has a track. The Sovereign has a different one, and the switch
+between them *is* the announcement that the fight has started — it comes in the
+moment the shell cracks and ends when the Sovereign does. Both stream through a
+`MediaElementSource` into the WebAudio graph, so the music bus obeys its own
+volume slider and the black rabbit's ducking leaves it alone.
+
+---
+
 ## Built with
 
 - **Three.js** r169 via CDN import map — no bundler, no `npm install`
@@ -212,17 +328,24 @@ two layers, so the tiling never becomes obvious at distance.
 | **[ARCHITECTURE.md](ARCHITECTURE.md)**         | Codebase map. Start here to contribute   |
 | **[docs/GAME_DESIGN.md](docs/GAME_DESIGN.md)** | The design bible — every system, and why |
 | **[docs/ASSETS.md](docs/ASSETS.md)**           | Every model in `OBJECTS/` and its role   |
+| **[progress.html](progress.html)**             | Live task board with time estimates      |
 
 ---
 
 ## Status
 
-Playable vertical slice. Movement, the lunge, rabbit AI and locomotion, the gun,
-the hammer, the boss fight, hidden coins, case opening and settings are all in.
+Playable vertical slice. In: movement and the lunge, rabbit AI and locomotion,
+courtship and mutants, four weapons, meat drops, the horses, the two-phase boss
+fight with its chickens, three skin cases with procedural paints, the carrot
+trader, the clinic, hidden coins, music and settings.
 
 **Not yet built:** the baking half — grinder, mixer, fryer minigame, recipes and
-customer orders — plus the goat room, the clothing rack, and maps 2 through 4.
-See `docs/GAME_DESIGN.md` §16 for the plan.
+customer orders — plus the goat room, the clothing rack, save/load, the day
+cycle, and maps 2 through 4.
+
+**[progress.html](progress.html)** is the live overhead: every step shipped, in
+progress, planned or deliberately parked, with time estimates against actuals.
+See `docs/GAME_DESIGN.md` §16 for the milestone plan.
 
 ---
 

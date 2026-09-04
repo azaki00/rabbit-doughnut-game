@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hare &amp; Glaze — Progress</title>
+<style>
+  :root{
+    --bg:#14100f; --panel:#1d1817; --line:rgba(253,243,227,.10);
+    --ink:#f0e6da; --dim:rgba(240,230,218,.55); --faint:rgba(240,230,218,.32);
+    --pink:#e0596f; --butter:#ffd98e; --mint:#8fd3b6; --sky:#8fb7d9; --violet:#b08fd9;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:14px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    padding:32px 20px 80px;
+  }
+  .wrap{max-width:1080px;margin:0 auto}
+
+  header{border-bottom:1px solid var(--line);padding-bottom:22px;margin-bottom:26px}
+  h1{font-size:26px;letter-spacing:.16em;margin:0 0 4px;font-weight:700}
+  .sub{color:var(--dim);font-size:13px}
+  .meta{margin-top:14px;font-size:12px;color:var(--faint);font-family:ui-monospace,Consolas,monospace}
+
+  .totals{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 8px}
+  .stat{
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:11px 15px;min-width:132px;
+  }
+  .stat b{display:block;font-size:21px;line-height:1.2}
+  .stat span{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+
+  h2{
+    font-size:11px;letter-spacing:.30em;text-transform:uppercase;
+    color:var(--faint);margin:34px 0 12px;font-weight:700;
+    border-top:1px solid var(--line);padding-top:20px;
+  }
+  h2:first-of-type{border-top:none}
+
+  table{width:100%;border-collapse:collapse}
+  th{
+    text-align:left;font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--faint);font-weight:600;padding:0 10px 8px;border-bottom:1px solid var(--line);
+  }
+  td{padding:10px;border-bottom:1px solid rgba(253,243,227,.05);vertical-align:top}
+  tr:hover td{background:rgba(253,243,227,.025)}
+  td.est,td.act{font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:nowrap;color:var(--dim)}
+  td.act{color:var(--mint)}
+  td.over .a{color:var(--pink)}
+  .what{font-weight:600}
+  .note{display:block;color:var(--dim);font-size:12.5px;margin-top:3px;font-weight:400}
+  .files{
+    display:block;margin-top:5px;font-family:ui-monospace,Consolas,monospace;
+    font-size:11px;color:var(--faint);
+  }
+
+  .pill{
+    display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;
+    letter-spacing:.12em;text-transform:uppercase;font-weight:700;white-space:nowrap;
+  }
+  .done{background:rgba(143,211,182,.16);color:var(--mint);border:1px solid rgba(143,211,182,.35)}
+  .wip {background:rgba(255,217,142,.16);color:var(--butter);border:1px solid rgba(255,217,142,.35)}
+  .next{background:rgba(143,183,217,.14);color:var(--sky);border:1px solid rgba(143,183,217,.32)}
+  .idea{background:rgba(176,143,217,.13);color:var(--violet);border:1px solid rgba(176,143,217,.30)}
+  .cut {background:rgba(240,230,218,.07);color:var(--faint);border:1px solid var(--line)}
+
+  .banner{
+    background:rgba(224,89,111,.09);border:1px solid rgba(224,89,111,.28);
+    border-radius:10px;padding:13px 16px;margin:20px 0 4px;font-size:13px;color:var(--dim);
+  }
+  .banner b{color:var(--pink)}
+  footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--line);
+    font-size:12px;color:var(--faint)}
+  code{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--butter)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>HARE &amp; GLAZE</h1>
+  <div class="sub">Build progress — every step taken, in progress, or considered.</div>
+  <div class="meta">
+    Last updated: 2026-09-04 &nbsp;·&nbsp; Milestone 1 “Feel” + M2 gait, plus the systems below<br>
+    Estimates are ideal working time for one developer. “Actual” is what it took here, including debugging.
+  </div>
+</header>
+
+<div class="totals">
+  <div class="stat"><b>41</b><span>Shipped</span></div>
+  <div class="stat"><b>0</b><span>In progress</span></div>
+  <div class="stat"><b>12</b><span>Planned</span></div>
+  <div class="stat"><b>~63 h</b><span>Est. shipped</span></div>
+  <div class="stat"><b>~97 h</b><span>Est. remaining</span></div>
+</div>
+
+<div class="banner">
+  <b>House rule:</b> this file is the overhead for everything — nothing is done until it appears here
+  with a status. Steps that were only <em>considered</em> are listed too, with why they were parked,
+  so the same idea is not re-litigated later.
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2>Core — movement, feel, world</h2>
+<table>
+<thead><tr><th style="width:42%">Task</th><th style="width:11%">Status</th><th style="width:11%">Est.</th><th style="width:11%">Actual</th><th>Notes</th></tr></thead>
+<tbody>
+<tr>
+  <td><span class="what">Design bible</span>
+    <span class="note">17-section master doc; every source file cites its section numbers.</span>
+    <span class="files">docs/GAME_DESIGN.md</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">4 h</td><td class="act">4 h</td>
+  <td>Locked decisions table is the arbiter for later scope arguments.</td>
+</tr>
+<tr>
+  <td><span class="what">Engine + fixed timestep</span>
+    <span class="note">1/60 accumulator, max 5 catch-up steps, render interpolation.</span>
+    <span class="files">src/core/Engine.js, Time.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">3 h</td><td class="act">3 h</td>
+  <td>Two-camera viewmodel rig on its own layer.</td>
+</tr>
+<tr>
+  <td><span class="what">First-person controller</span>
+    <span class="note">Quake accel/friction, sprint, crouch, jump, stamina, distance-driven head bob.</span>
+    <span class="files">src/player/Controller.js, HeadBob.js, Stamina.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">5 h</td><td class="act">6 h</td>
+  <td>Bob is distance-accumulated, not time-driven — it stops when you stop.</td>
+</tr>
+<tr>
+  <td><span class="what">Pointer lock hardening</span>
+    <span class="note">First-event spike drop, rate-limited re-lock, magnitude clamp.</span>
+    <span class="files">src/core/Input.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">1 h</td><td class="act">3 h</td>
+  <td class="over"><span class="a">Chrome reports a huge first movementX after re-lock; caused the “snapping” report.</span></td>
+</tr>
+<tr>
+  <td><span class="what">Greybox meadow</span>
+    <span class="note">Ground texture, cooking table, fences, rocks, treeline, 420 instanced grass tufts.</span>
+    <span class="files">src/world/Greybox.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">5 h</td><td class="act">7 h</td>
+  <td>Grass merged to one draw call.</td>
+</tr>
+<tr>
+  <td><span class="what">Asset loader + normalisation</span>
+    <span class="note"><code>fitToHeight</code>/<code>fitToMax</code>, per-call MTLLoader, luminance floor, dissolve floor.</span>
+    <span class="files">src/world/Loaders.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">2 h</td><td class="act">6 h</td>
+  <td class="over"><span class="a">Three separate traps: shared MTLLoader, near-black source materials, and <code>d 0.000000</code>.</span></td>
+</tr>
+<tr>
+  <td><span class="what">Buildings, trees, props</span>
+    <span class="note">House_1, Cottage, pine + leafy tree groups, park bench, rocks.</span>
+    <span class="files">src/world/Greybox.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">3 h</td><td class="act">4 h</td>
+  <td>Colliders derived from loaded bounding boxes, not hardcoded.</td>
+</tr>
+<tr>
+  <td><span class="what">Settings menu</span>
+    <span class="note">Sensitivity, FOV, master/effects/music volume, head bob, invert Y; localStorage.</span>
+    <span class="files">src/ui/Settings.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">2 h</td><td class="act">3 h</td>
+  <td class="over"><span class="a">Resume/close both grabbed pointer lock and tripped the rate limiter.</span></td>
+</tr>
+<tr>
+  <td><span class="what">Dev tools panel</span>
+    <span class="note">+10,000c button in Settings, so the shops can be tested without the grind.</span>
+    <span class="files">src/ui/Settings.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">20 m</td><td class="act">20 m</td>
+  <td>—</td>
+</tr>
+</tbody>
+</table>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2>Rabbits</h2>
+<table>
+<thead><tr><th style="width:42%">Task</th><th style="width:11%">Status</th><th style="width:11%">Est.</th><th style="width:11%">Actual</th><th>Notes</th></tr></thead>
+<tbody>
+<tr>
+  <td><span class="what">Procedural rabbit body</span>
+    <span class="note">Transform hierarchy, not a skinned mesh; one builder makes every type.</span>
+    <span class="files">src/rabbits/RabbitMesh.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">5 h</td><td class="act">5 h</td>
+  <td>Every OBJECTS/ rabbit was a humanoid; going procedural was the only honest answer.</td>
+</tr>
+<tr>
+  <td><span class="what">Saltation gait</span>
+    <span class="note">5 phases, spine flex −25°→+18°, ballistic parabola, damped-spring ears.</span>
+    <span class="files">src/rabbits/HopGait.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">6 h</td><td class="act">8 h</td>
+  <td>Direction changes only commit at the hind plant. This is the “lore accurate” ask.</td>
+</tr>
+<tr>
+  <td><span class="what">Rabbit AI</span>
+    <span class="note">GRAZE / ALERT / FLEE / EVADE / CAUGHT / CIRCLE / LURED / MATE.</span>
+    <span class="files">src/rabbits/Rabbit.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">4 h</td><td class="act">6 h</td>
+  <td>Hearing radius is driven by the player’s own noise, so crouching matters.</td>
+</tr>
+<tr>
+  <td><span class="what">Four rabbit types</span>
+    <span class="note">Cottontail, Lop, Jack, Black Rabbit — speed, value, proportions, coat.</span>
+    <span class="files">src/rabbits/types.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">2 h</td><td class="act">3 h</td>
+  <td>Speeds cut twice on playtest feedback; all now slower than a sprint.</td>
+</tr>
+<tr>
+  <td><span class="what">Procedural rabbit voices</span>
+    <span class="note">Per-rabbit synthesized squeals, thumps and chatter.</span>
+    <span class="files">src/audio/RabbitVoice.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">3 h</td><td class="act">3 h</td>
+  <td>—</td>
+</tr>
+<tr>
+  <td><span class="what">Endless spawning</span>
+    <span class="note">Tops the field back to 16 on a timer, not one-for-one per catch.</span>
+    <span class="files">src/main.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">30 m</td><td class="act">30 m</td>
+  <td>—</td>
+</tr>
+<tr>
+  <td><span class="what">Courtship + mutants</span>
+    <span class="note">Two rabbits pair up, hearts for 10 s of barging, hearts pop, a larger
+      mutated rabbit is born — extra ears, extra eyes, spinal lumps, sometimes a second head.
+      One every 90 s, one courtship at a time; value capped at 1000c with scale derived from it.</span>
+    <span class="files">src/rabbits/Mating.js, mutate.js, RabbitMesh.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">4 h</td><td class="act">6 h</td>
+  <td class="over"><span class="a">First pass had no cap or rate limit: mutants breeding with mutants filled the
+    meadow with building-sized rabbits worth more than the boss.</span></td>
+</tr>
+</tbody>
+</table>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2>Weapons and the hunt</h2>
+<table>
+<thead><tr><th style="width:42%">Task</th><th style="width:11%">Status</th><th style="width:11%">Est.</th><th style="width:11%">Actual</th><th>Notes</th></tr></thead>
+<tbody>
+<tr>
+  <td><span class="what">The red glove + lunge grab</span>
+    <span class="note">Charge, dash, active window, whiff stumble. The core skill expression.</span>
+    <span class="files">src/player/Glove.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">6 h</td><td class="act">9 h</td>
+  <td class="over"><span class="a">Grab geometry bug: a 25° vertical cone from chest height rejected every rabbit on the ground.</span></td>
+</tr>
+<tr>
+  <td><span class="what">The Culling Piece (gun)</span>
+    <span class="note">Hitscan, spread, recoil, break-action reload.</span>
+    <span class="files">src/player/Gun.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">3 h</td><td class="act">4 h</td>
+  <td>Deliberately the worse option: loud, and it ruins the meat.</td>
+</tr>
+<tr>
+  <td><span class="what">Two-shell magazine, infinite reserve</span>
+    <span class="note">Fires twice, auto-reloads over 1.9 s, never runs dry.</span>
+    <span class="files">src/player/Gun.js, src/ui/Hud.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">30 m</td><td class="act">30 m</td>
+  <td>The rhythm is the cost, not the count.</td>
+</tr>
+<tr>
+  <td><span class="what">Muzzle flash</span>
+    <span class="note">Hot cone + four-point star + a real point light, ~70 ms, random roll per shot.</span>
+    <span class="files">src/player/Gun.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">1 h</td><td class="act">1.5 h</td>
+  <td class="over"><span class="a">First version sat 4 cm inside the barrel and was depth-tested away — invisible, no error.</span></td>
+</tr>
+<tr>
+  <td><span class="what">Impact marks</span>
+    <span class="note">Scorch / blood / yolk decals on whatever was hit, 4 s life, pooled.</span>
+    <span class="files">src/world/Impacts.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">2 h</td><td class="act">2.5 h</td>
+  <td>Misses raycast the real scene, so marks land on trees and rocks.</td>
+</tr>
+<tr>
+  <td><span class="what">The Tenderiser (hammer)</span>
+    <span class="note">2000c at the table; the only thing that cracks the shell.</span>
+    <span class="files">src/player/Hammer.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">2 h</td><td class="act">3 h</td>
+  <td>Now also displayed, floating and turning, over table station 1.</td>
+</tr>
+<tr>
+  <td><span class="what">The Toothbrush</span>
+    <span class="note">Starting melee. Fast, silent, keeps 75% of the meat. Slot 4.</span>
+    <span class="files">src/player/Toothbrush.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">2 h</td><td class="act">2.5 h</td>
+  <td>Its niche is the rabbit that has stopped for a carrot.</td>
+</tr>
+<tr>
+  <td><span class="what">Meat drops</span>
+    <span class="note">Shot rabbits no longer pay on the shot — they drop a slab you have to walk to.
+      Size and colour per rabbit type.</span>
+    <span class="files">src/world/MeatDrops.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">2 h</td><td class="act">3 h</td>
+  <td class="over"><span class="a">Steak MTL is <code>materials.mtl</code>, not <code>model.mtl</code>; every cut was flat white until fixed.</span></td>
+</tr>
+</tbody>
+</table>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2>Economy, shops and skins</h2>
+<table>
+<thead><tr><th style="width:42%">Task</th><th style="width:11%">Status</th><th style="width:11%">Est.</th><th style="width:11%">Actual</th><th>Notes</th></tr></thead>
+<tbody>
+<tr>
+  <td><span class="what">Hidden coins</span>
+    <span class="note">30 placed by hand behind cover, so exploring pays.</span>
+    <span class="files">src/world/Pickups.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">1.5 h</td><td class="act">1.5 h</td>
+  <td>—</td>
+</tr>
+<tr>
+  <td><span class="what">CS-exact case reel</span>
+    <span class="note">DOM strip, easeOutQuint over 6 s, winner pre-decided at index 68, off-centre landing.</span>
+    <span class="files">src/ui/CaseReel.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">4 h</td><td class="act">4 h</td>
+  <td>Ticks are driven by position, so the audio <em>is</em> the deceleration curve.</td>
+</tr>
+<tr>
+  <td><span class="what">Three chests, three collections</span>
+    <span class="note">Meadow / Culling / Enamel cases — glove, gun and toothbrush skins never cross over.
+      Coloured, labelled placards.</span>
+    <span class="files">src/world/Chest.js, src/economy/Skins.js, src/main.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">3 h</td><td class="act">4 h</td>
+  <td>57 skins across the three cases.</td>
+</tr>
+<tr>
+  <td><span class="what">Procedural skin patterns</span>
+    <span class="note">15 generators — fade, camo, hydro-dip, crackle, circuit, scales, stars, splatter,
+      doodle, rust, chrome, galaxy — with matching roughness maps. Explicitly not recolours.</span>
+    <span class="files">src/economy/SkinTextures.js, applySkin.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">4 h</td><td class="act">6 h</td>
+  <td class="over"><span class="a">Needed box-projected UVs in root space: the glove’s own UVs pack every face into one texel,
+    and raw OBJ coordinates blew the toothbrush’s UVs out to −75.</span></td>
+</tr>
+<tr>
+  <td><span class="what">The hamster trader + carrots</span>
+    <span class="note">5c carrots that freeze every rabbit within 14 m. Stall now behind House_1.</span>
+    <span class="files">src/world/Carrots.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">3 h</td><td class="act">7 h</td>
+  <td class="over"><span class="a">The hamster was invisible for a very long time: <code>d 0.000000</code> in its MTL. Every numeric probe said it was fine.</span></td>
+</tr>
+<tr>
+  <td><span class="what">The healing booth</span>
+    <span class="note">300c full heal, 150c carried shake (H to drink). Pitched by the Cottage
+      with the old shop man beside it.</span>
+    <span class="files">src/world/HealingBooth.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">2 h</td><td class="act">2.5 h</td>
+  <td>Carried shakes are the better deal only if you take them into the fight.</td>
+</tr>
+</tbody>
+</table>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2>The Sunny-Side Sovereign</h2>
+<table>
+<thead><tr><th style="width:42%">Task</th><th style="width:11%">Status</th><th style="width:11%">Est.</th><th style="width:11%">Actual</th><th>Notes</th></tr></thead>
+<tbody>
+<tr>
+  <td><span class="what">Boss fight</span>
+    <span class="note">4000 HP, chase, telegraphed slam, yolk spit; scales with missing health.</span>
+    <span class="files">src/world/EggBoss.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">5 h</td><td class="act">6 h</td>
+  <td>—</td>
+</tr>
+<tr>
+  <td><span class="what">Shell phase + gating</span>
+    <span class="note">Intact egg model, six procedural crack lines, hammer-only. Shatters into shards
+      and reveals the fried egg underneath.</span>
+    <span class="files">src/world/EggBoss.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">2 h</td><td class="act">2.5 h</td>
+  <td>The yolk was white because the model loaded without its MTL at all.</td>
+</tr>
+<tr>
+  <td><span class="what">Phase two — chickens</span>
+    <span class="note">At ≤50% health it throws live chickens that land short of you and charge.
+      Killable in one shot; they detonate into feathers on contact.</span>
+    <span class="files">src/world/Chickens.js, EggBoss.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">3 h</td><td class="act">3.5 h</td>
+  <td>The answer to kiting a wounded boss.</td>
+</tr>
+<tr>
+  <td><span class="what">Protein Shake drop</span>
+    <span class="note">Awarded on the Sovereign’s death. Counted and shown in the HUD.</span>
+    <span class="files">src/main.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">15 m</td><td class="act">15 m</td>
+  <td><b>Purpose deliberately undefined</b> — awaiting a decision.</td>
+</tr>
+</tbody>
+</table>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2>Horses</h2>
+<table>
+<thead><tr><th style="width:42%">Task</th><th style="width:11%">Status</th><th style="width:11%">Est.</th><th style="width:11%">Actual</th><th>Notes</th></tr></thead>
+<tbody>
+<tr>
+  <td><span class="what">Four wild horses</span>
+    <span class="note">Graze and wander; E to mount within 3.6 m.</span>
+    <span class="files">src/world/Horses.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">3 h</td><td class="act">3 h</td>
+  <td>13 m/s — roughly three times your sprint.</td>
+</tr>
+<tr>
+  <td><span class="what">Four-second ride + buck</span>
+    <span class="note">Runs where you look, then throws you over its head and bolts.</span>
+    <span class="files">src/world/Horses.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">1.5 h</td><td class="act">1.5 h</td>
+  <td>Hooves scare every rabbit within 26 m.</td>
+</tr>
+<tr>
+  <td><span class="what">Fall and get-up animation</span>
+    <span class="note">Airborne spin, face-first landing, camera slumps to the grass, then rights itself.</span>
+    <span class="files">src/player/Controller.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">1.5 h</td><td class="act">1.5 h</td>
+  <td>Plus a body-fall thump and a winded grunt.</td>
+</tr>
+</tbody>
+</table>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2>Audio</h2>
+<table>
+<thead><tr><th style="width:42%">Task</th><th style="width:11%">Status</th><th style="width:11%">Est.</th><th style="width:11%">Actual</th><th>Notes</th></tr></thead>
+<tbody>
+<tr>
+  <td><span class="what">WebAudio graph + distinctness pass</span>
+    <span class="note">Five buses, compressor on master. Every sound varies source, register and envelope.</span>
+    <span class="files">src/audio/AudioEngine.js, Sfx.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">4 h</td><td class="act">6 h</td>
+  <td>Rewritten after “all the sounds sound the same”.</td>
+</tr>
+<tr>
+  <td><span class="what">Recorded samples</span>
+    <span class="note">Shotgun, fart (horse dismount), chicken death, chicken squawks — all with
+      synthesized fallbacks and leading-silence trimming.</span>
+    <span class="files">src/audio/AudioEngine.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">1 h</td><td class="act">1.5 h</td>
+  <td>—</td>
+</tr>
+<tr>
+  <td><span class="what">Music</span>
+    <span class="note">Meadow track and boss track, crossfaded. Boss music starts on summon and ends on death.</span>
+    <span class="files">src/audio/Music.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">1.5 h</td><td class="act">1.5 h</td>
+  <td>Streamed via MediaElementSource; a 3-minute loop as a raw buffer is ~30 MB.</td>
+</tr>
+</tbody>
+</table>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2>Planned — not started</h2>
+<table>
+<thead><tr><th style="width:42%">Task</th><th style="width:11%">Status</th><th style="width:11%">Est.</th><th style="width:11%">Actual</th><th>Notes</th></tr></thead>
+<tbody>
+<tr>
+  <td><span class="what">The baking half</span>
+    <span class="note">Grinder, mixer, fryer minigame, glazing station. The other half of the premise.</span></td>
+  <td><span class="pill next">Planned</span></td><td class="est">14 h</td><td class="act">—</td>
+  <td>Table stations already exist as four labelled boxes waiting for it.</td>
+</tr>
+<tr>
+  <td><span class="what">Doughnut recipes + unlocks</span>
+    <span class="note">8 doughnut types, recipe discovery, order board.</span></td>
+  <td><span class="pill next">Planned</span></td><td class="est">8 h</td><td class="act">—</td>
+  <td>Kenney + Jarlan Perez doughnut assets are already in OBJECTS/.</td>
+</tr>
+<tr>
+  <td><span class="what">The goat room</span>
+    <span class="note">Small garish gambling room, goat paintings, lots of colour. Locked design decision.</span></td>
+  <td><span class="pill next">Planned</span></td><td class="est">6 h</td><td class="act">—</td>
+  <td>The reel exists; the room does not.</td>
+</tr>
+<tr>
+  <td><span class="what">The clothing rack</span>
+    <span class="note">Physical place to change gloves, rather than auto-equipping on unbox.</span></td>
+  <td><span class="pill next">Planned</span></td><td class="est">3 h</td><td class="act">—</td>
+  <td>Now needs three racks, or one rack with three rails.</td>
+</tr>
+<tr>
+  <td><span class="what">Protein Shake purpose</span>
+    <span class="note">Currently a counter with no effect, by request.</span></td>
+  <td><span class="pill wip">Awaiting</span></td><td class="est">?</td><td class="act">—</td>
+  <td>Blocked on a design decision, not on code.</td>
+</tr>
+<tr>
+  <td><span class="what">Save / load</span>
+    <span class="note">Coins, skins, day, unlocks. Schema is already specified in the design doc.</span></td>
+  <td><span class="pill next">Planned</span></td><td class="est">3 h</td><td class="act">—</td>
+  <td>Everything is currently lost on refresh.</td>
+</tr>
+<tr>
+  <td><span class="what">Day cycle</span>
+    <span class="note">Days advance, lighting shifts, the field repopulates differently.</span></td>
+  <td><span class="pill next">Planned</span></td><td class="act">—</td><td class="est">5 h</td>
+  <td>HUD already shows “DAY 1”.</td>
+</tr>
+<tr>
+  <td><span class="what">Maps 2–4</span>
+    <span class="note">Locked decision: days <em>and</em> levels.</span></td>
+  <td><span class="pill next">Planned</span></td><td class="est">20 h</td><td class="act">—</td>
+  <td>Greybox is single-map today; world build is not yet parameterised.</td>
+</tr>
+<tr>
+  <td><span class="what">Black Rabbit eat-raw mechanic</span>
+    <span class="note">The only way to lose health outside the boss fight. F is bound but inert.</span></td>
+  <td><span class="pill next">Planned</span></td><td class="est">2 h</td><td class="act">—</td>
+  <td>Specified in §13; the rabbit and its dread already exist.</td>
+</tr>
+<tr>
+  <td><span class="what">Skin trade-up / cash out</span>
+    <span class="note">Sell duplicates back for coins; the “cash out” half of the original brief.</span></td>
+  <td><span class="pill next">Planned</span></td><td class="est">4 h</td><td class="act">—</td>
+  <td><code>valueOf()</code> already exists and is unused.</td>
+</tr>
+<tr>
+  <td><span class="what">Mutant breeding depth</span>
+    <span class="note">Second-generation mutants inheriting from mutant parents; a runaway line.</span></td>
+  <td><span class="pill cut">Parked</span></td><td class="est">3 h</td><td class="act">—</td>
+  <td>Capped instead: value ceiling 1000c, scale derived from value, one birth per 90 s.</td>
+</tr>
+<tr>
+  <td><span class="what">Performance pass</span>
+    <span class="note">Instancing for rabbits, texture atlas, draw-call audit.</span></td>
+  <td><span class="pill next">Planned</span></td><td class="est">6 h</td><td class="act">—</td>
+  <td>Not currently a problem; will be with 4 maps.</td>
+</tr>
+</tbody>
+</table>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2>Considered and parked</h2>
+<table>
+<thead><tr><th style="width:42%">Idea</th><th style="width:11%">Status</th><th style="width:11%">Est.</th><th style="width:11%">Actual</th><th>Why parked</th></tr></thead>
+<tbody>
+<tr>
+  <td><span class="what">Skinned-mesh rabbits</span>
+    <span class="note">Standard bone rig instead of a hand-built transform hierarchy.</span></td>
+  <td><span class="pill cut">Parked</span></td><td class="est">8 h</td><td class="act">—</td>
+  <td>The gait needs exact per-joint control; skin weights would only be fought.</td>
+</tr>
+<tr>
+  <td><span class="what">Physics library</span>
+    <span class="note">Cannon/Rapier for collision instead of AABB push-out.</span></td>
+  <td><span class="pill cut">Parked</span></td><td class="est">6 h</td><td class="act">—</td>
+  <td>Flat ground and boxes. The game does not need one and would feel worse with it.</td>
+</tr>
+<tr>
+  <td><span class="what">Build step / bundler</span>
+    <span class="note">Vite or esbuild.</span></td>
+  <td><span class="pill cut">Parked</span></td><td class="est">2 h</td><td class="act">—</td>
+  <td>Plain ES modules + import map works; a build step would slow iteration for no gain yet.</td>
+</tr>
+<tr>
+  <td><span class="what">Loaded texture atlas for skins</span>
+    <span class="note">Authored PNGs instead of canvas generators.</span></td>
+  <td><span class="pill cut">Parked</span></td><td class="est">10 h</td><td class="act">—</td>
+  <td>Canvas generation is deterministic, seeded, adds zero download, and nothing can 404.</td>
+</tr>
+<tr>
+  <td><span class="what">Rabbit-vs-rabbit collision</span>
+    <span class="note">So they cannot overlap during courtship.</span></td>
+  <td><span class="pill idea">Idea</span></td><td class="est">2 h</td><td class="act">—</td>
+  <td>Overlap is currently what makes the barging read as barging. Revisit if it looks wrong.</td>
+</tr>
+</tbody>
+</table>
+
+<footer>
+  Est. totals exclude parked items. Anything marked <span class="pill done">Done</span> has been
+  verified running in the browser, not merely compiled.
+</footer>
+
+</div>
+</body>
+</html>

@@ -394,6 +394,88 @@ export class Sfx {
     f.frequency.exponentialRampToValueAtTime(260, t + 0.3);
   }
 
+  // Hitting the ground with your whole body: a deep thump with a scuff of
+  // grass over it, and a grunt. Lowest thing in the game.
+  bodyFall() {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+    const { f } = this._noise('world', 'lowpass', 220, 0.9, 0.20, 0.002, 0.22, t);
+    f.frequency.exponentialRampToValueAtTime(70, t + 0.2);
+    this._tone('sine', 58, 'world', 0.13, 0.003, 0.26, t);
+    // the grass scuff
+    this._noise('world', 'bandpass', 2200, 1.3, 0.05, 0.01, 0.2, t + 0.03);
+    // and a winded grunt
+    const { o, g } = a.osc('sawtooth', 150, 'voice');
+    o.frequency.setValueAtTime(165, t + 0.04);
+    o.frequency.exponentialRampToValueAtTime(96, t + 0.34);
+    const lp = a.ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 700; lp.Q.value = 3;
+    g.disconnect(); g.connect(lp); lp.connect(a.buses.voice);
+    a.env(g.gain, 0.07, 0.02, 0.3, t + 0.04);
+    o.start(t + 0.04); o.stop(t + 0.42);
+  }
+
+  // ── courtship ───────────────────────────────────────────────────────────
+
+  // Two soft rising thirds. Sweet, quiet, and slightly too sincere.
+  courtship() {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+    this._tone('triangle', 523, 'ui', 0.045, 0.02, 0.3, t);
+    this._tone('triangle', 659, 'ui', 0.040, 0.02, 0.36, t + 0.16);
+  }
+
+  // The birth: the sweetness curdles. A bright chord that bends downward into
+  // something wrong, over a wet thump.
+  mutantBorn() {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+    for (let i = 0; i < 3; i++) {
+      const { o, g } = a.osc('triangle', 0, 'voice');
+      const base = [660, 830, 990][i];
+      o.frequency.setValueAtTime(base, t);
+      o.frequency.exponentialRampToValueAtTime(base * 0.42, t + 0.9);
+      g.connect(a.buses.voice);
+      a.env(g.gain, 0.055, 0.02, 0.95, t + i * 0.05);
+      o.start(t); o.stop(t + 1.1);
+    }
+    const { f } = this._noise('world', 'lowpass', 520, 0.9, 0.16, 0.004, 0.34, t + 0.5);
+    f.frequency.exponentialRampToValueAtTime(120, t + 0.8);
+    this._tone('sine', 64, 'world', 0.11, 0.004, 0.5, t + 0.5);
+  }
+
+  // ── weather ─────────────────────────────────────────────────────────────
+
+  // Thunder: a long, low, filtered roar with a crack on the front. Occupies a
+  // band nothing else touches (sub-200Hz sustained for two seconds) so it
+  // never fights the boss or the gun, and the crack sells the distance.
+  thunder(intensity = 1) {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+    const gain = 0.16 * (0.5 + intensity * 0.5);
+
+    // the crack — bright, immediate, short
+    const { f: crack } = this._noise('world', 'highpass', 1800, 0.7, gain * 0.5, 0.002, 0.16, t);
+    crack.frequency.exponentialRampToValueAtTime(420, t + 0.15);
+
+    // the roll — a long lowpassed rumble that opens and closes twice, which is
+    // what makes it read as thunder rather than as a whoosh
+    const { s: src, g, f } = this._noise('world', 'lowpass', 420, 0.9, gain, 0.06, 2.2, t + 0.02);
+    f.frequency.setValueAtTime(420, t);
+    f.frequency.exponentialRampToValueAtTime(90, t + 1.1);
+    f.frequency.exponentialRampToValueAtTime(180, t + 1.5);
+    f.frequency.exponentialRampToValueAtTime(60, t + 2.2);
+    // a slow tremolo on the tail, so the roll wanders
+    const lfo = a.ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 1.7;
+    const ld = a.ctx.createGain(); ld.gain.value = gain * 0.35;
+    lfo.connect(ld); ld.connect(g.gain);
+    lfo.start(t); lfo.stop(t + 2.4);
+    void src;
+
+    // and the sub, felt more than heard
+    this._tone('sine', 42, 'world', gain * 0.7, 0.05, 1.9, t + 0.03);
+  }
+
   // ── the shell ───────────────────────────────────────────────────────────
 
   // Bright metallic ring, very high, long decay. Says "that did nothing".

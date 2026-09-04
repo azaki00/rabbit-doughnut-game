@@ -1,11 +1,16 @@
 import * as THREE from 'three';
 import { loadModel } from './Loaders.js';
 
-// The Chest — GAME_DESIGN.md §9.1
+// The Chests — GAME_DESIGN.md §9.1
 //
-// Sits beside the cooking table and is ALWAYS visible in the world, never a
-// pure menu. This is where glove skins are unlocked: walk up, look at it, and
-// press E to open a case.
+// THREE of them, in a row beside the cooking table, and always visible in the
+// world rather than hidden in a menu. Each one is a different case: the glove,
+// the gun and the toothbrush have separate skin pools and never cross over.
+// Walk up, look at one, press E.
+//
+// `kind` is the collection key ('glove' | 'gun' | 'brush'); `tint` is the
+// colour of its glow and floating label, so you can tell them apart from
+// across the clearing without reading anything.
 //
 // Uses OBJECTS/Chest by Quaternius (Chest_Open.fbx) with a procedural fallback,
 // so the level still builds if the asset is missing.
@@ -13,10 +18,15 @@ import { loadModel } from './Loaders.js';
 const CHEST_URL = 'OBJECTS/Chest by Quaternius - IbCTSkyWDT/Chest_Open.fbx';
 
 export class Chest {
-  constructor(scene, position) {
+  constructor(scene, position, { kind = 'glove', label = 'CASE', tint = 0xffd98e, yaw = 0 } = {}) {
     this.scene = scene;
+    this.kind = kind;
+    this.label = label;
+    this.tint = tint;
+
     this.root = new THREE.Group();
     this.root.position.copy(position);
+    this.root.rotation.y = yaw;
     scene.add(this.root);
 
     this.open = 0;          // 0..1 lid
@@ -26,6 +36,34 @@ export class Chest {
     this._buildFallback();
     this._loadReal();
     this._buildGlow();
+    this._buildSign();
+  }
+
+  // A floating placard in the chest's own colour. Three identical chests in a
+  // row is a guessing game; three labelled ones is a choice.
+  _buildSign() {
+    const c = document.createElement('canvas');
+    c.width = 256; c.height = 64;
+    const g = c.getContext('2d');
+    g.fillStyle = 'rgba(18,14,12,0.82)';
+    g.fillRect(0, 0, 256, 64);
+    g.strokeStyle = '#' + this.tint.toString(16).padStart(6, '0');
+    g.lineWidth = 4;
+    g.strokeRect(2, 2, 252, 60);
+    g.fillStyle = '#' + this.tint.toString(16).padStart(6, '0');
+    g.font = 'bold 26px system-ui, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(this.label, 128, 34);
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    this.sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.15, 0.29),
+      new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide }),
+    );
+    this.sign.position.set(0, 1.42, 0);
+    this.root.add(this.sign);
   }
 
   // Stand-in so the chest exists on frame one, replaced if the FBX loads.
@@ -72,13 +110,13 @@ export class Chest {
 
   // A soft upward light so the chest reads as interactive from a distance.
   _buildGlow() {
-    this.light = new THREE.PointLight(0xffd98e, 0, 6, 2);
+    this.light = new THREE.PointLight(this.tint, 0, 6, 2);
     this.light.position.set(0, 1.0, 0);
     this.root.add(this.light);
 
     const ringGeo = new THREE.RingGeometry(0.95, 1.25, 24);
     this.ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
-      color: 0xffd98e, transparent: true, opacity: 0, side: THREE.DoubleSide,
+      color: this.tint, transparent: true, opacity: 0, side: THREE.DoubleSide,
     }));
     this.ring.rotation.x = -Math.PI / 2;
     this.ring.position.y = 0.02;
@@ -104,6 +142,16 @@ export class Chest {
     this.ring.material.opacity = this.glow * 0.22;
     const pulse = 1 + Math.sin(performance.now() * 0.003) * 0.03 * this.glow;
     this.ring.scale.setScalar(pulse);
+
+    // the placard bobs, and faces the camera on the yaw axis only
+    if (this.sign) {
+      this.sign.position.y = 1.42 + Math.sin(performance.now() * 0.0016) * 0.05;
+      if (this.faceTarget) {
+        this.sign.rotation.y =
+          Math.atan2(this.faceTarget.x - this.root.position.x,
+                     this.faceTarget.z - this.root.position.z) - this.root.rotation.y;
+      }
+    }
 
     if (this.open > 0) {
       this.open = Math.max(0, this.open - dt * 1.2);
