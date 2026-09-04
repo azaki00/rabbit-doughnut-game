@@ -1,5 +1,81 @@
 # Release notes
 
+## v0.4.0 — “Weather and Consequences”
+
+Suggested tag: `v0.4.0`
+
+The sky arrived, and so did dying properly.
+
+### Clouds and the storm
+
+- **A sky dome and clouds.** A three-stop gradient dome replaces the flat
+  background colour, with 46 instanced low-poly clouds drifting overhead.
+- **The boss brings weather.** One `storm` value eases 0 → 1 when the shell
+  cracks and drives everything: near-black sky overhead with a bruised red band
+  at the horizon, fog closing from 190 m to 78, clouds darkening and dropping to
+  46 m, the sun dimming and going cold, **1800 rain streaks**, and **lightning**
+  on a timer that tightens with the Sovereign's rage. It clears again, more
+  slowly, on its death.
+- **Thunder**, in a frequency band nothing else in the game occupies.
+
+### Dying
+
+- **WASTED.** The canvas desaturates and blurs, a vignette closes in, and one
+  enormous serif word crawls up out of nothing.
+- **The death camera** collapses to 25 cm off the grass, rolls onto its side and
+  looks up at the sky.
+- **Fifteen seconds** of a countdown, while `skill issue, dying in this game`
+  types itself out one character at a time.
+- **The cell.** You wake up in a stone box at the edge of the meadow: three
+  solid walls, a barred front with real collision, and the door standing wide
+  open. You keep everything except 20% of your coins; the walk back is the rest
+  of the punishment.
+
+### The Stranger
+
+- The Tenderiser is **no longer sold at the cooking table**. It belongs to a
+  merchant in the far corner, standing in the mouth of a shack
+  (`OBJECTS/small-shack`) with a broken cart (`OBJECTS/broken-wagon`) beside it.
+- **A real conversation.** `E` takes the camera off your head and eases it in on
+  his face, Elder-Scrolls style, with a dialogue box of numbered replies —
+  pickable with `1`-`9`, the arrow keys, or the mouse. He talks about his wares,
+  the rabbits, doughnuts, and the egg.
+- On the sale: *"Thank you for paying. But I don't know what's it for. But it
+  does some decent damage."*
+
+### Also
+
+- The player death sound is now the recorded **player-dying.mp3**.
+- The clinic keeper is now the purpose-made **shop-old-man** model.
+- **Chicken audio**: the recorded clip plays in full and quietly on spawn — only
+  one at a time, or a burst of two becomes a wall — and each bird mutters at low
+  volume about once a second while it chases you.
+- The three cases are **spaced along an arc** so only one is ever in range.
+
+### Fixes
+
+- `backdrop-filter` does not composite over a WebGL canvas. The first WASTED
+  screen came out full colour with a faint vignette over it; the desaturation is
+  now applied to the canvas element itself.
+- **Opening the dialogue opened the settings menu.** `input.onUnlock` treated
+  every pointer-lock release as an Esc press; the conversation, the case reel
+  and the death screen all release the cursor deliberately, and each now says so.
+- The merchant model is authored facing +Z, so he greeted you with the back of
+  his hood until it was yawed 180°.
+- The cell was placed inside a pine clump twice. Tree models load
+  asynchronously, so a clearance scan against `world.colliders` at build time
+  passes everything — the clump centres are now declared synchronously on the
+  Greybox and checked directly.
+
+### New files
+
+```
+src/world/Sky.js        src/world/JailCell.js    src/ui/Wasted.js
+src/world/Merchant.js   src/ui/Dialogue.js
+```
+
+---
+
 ## v0.3.0 — “The Sovereign, the Saddle and the Toothbrush”
 
 Suggested tag: `v0.3.0`

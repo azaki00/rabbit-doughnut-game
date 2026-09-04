@@ -27,6 +27,10 @@ export const CHICKEN = {
   hitRadius: 1.05,
   life: 16,              // gives up and wanders off
   maxAlive: 7,
+  // Each bird mutters about once a second. Jittered per chicken so a flock
+  // never clucks in unison.
+  idleSound: 1.0,
+  idleJitter: 0.55,
   bodyRadius: 0.3,
   meatValue: 8,
 };
@@ -125,6 +129,8 @@ export class Chickens {
       life: CHICKEN.life,
       flap: Math.random() * 10,
       spin: (Math.random() - 0.5) * 12,
+      // stagger the first mutter so a burst does not all speak at once
+      talk: Math.random() * CHICKEN.idleSound,
     };
     this.list.push(c);
     this.sfx?.chickenThrow?.();
@@ -215,6 +221,13 @@ export class Chickens {
         }
       } else {
         // ── chasing ──
+        // it complains, quietly, about once a second
+        c.talk -= dt;
+        if (c.talk <= 0) {
+          c.talk = CHICKEN.idleSound + (Math.random() - 0.5) * 2 * CHICKEN.idleJitter;
+          this.sfx?.chickenIdle?.();
+        }
+
         const to = _v.subVectors(player.pos, c.obj.position).setY(0);
         const dist = to.length();
 

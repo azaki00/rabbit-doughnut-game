@@ -7,7 +7,13 @@ const BINDS = {
   KeyA: 'left',  ArrowLeft:  'left',
   KeyD: 'right', ArrowRight: 'right',
   ShiftLeft: 'sprint', ShiftRight: 'sprint',
-  ControlLeft: 'crouch', ControlRight: 'crouch', KeyC: 'crouch',
+  // CROUCH IS NOT ON CTRL.
+  //
+  // Ctrl+W closes the tab, and a page cannot preventDefault a reserved browser
+  // shortcut — so crouching while walking forward quit the game outright. Ctrl
+  // also collides with Ctrl+S, Ctrl+A and Ctrl+D. C is the only binding here
+  // that is entirely ours.
+  KeyC: 'crouch', KeyZ: 'crouch',
   Space: 'jump',
   KeyE: 'interact',
   KeyF: 'eatRaw',
@@ -44,7 +50,11 @@ export class Input {
       if (a) {
         if (!this.actions[a]) this.pressed[a] = true;
         this.actions[a] = true;
-        if (e.code === 'Space' || e.code === 'Tab') e.preventDefault();
+        // Swallow anything bound while we hold the cursor, so the page never
+        // scrolls, selects or quick-finds under the player. Reserved browser
+        // shortcuts (Ctrl+W and friends) cannot be swallowed — which is why
+        // nothing above is bound to a modifier.
+        if (this.locked || e.code === 'Space' || e.code === 'Tab') e.preventDefault();
       }
       if (e.code === 'F1') { e.preventDefault(); this.onToggleDebug?.(); }
     });

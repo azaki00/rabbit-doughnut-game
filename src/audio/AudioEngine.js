@@ -74,6 +74,11 @@ export class AudioEngine {
         'assets/audio/chicken-sounds.mp3',
         'chicken sounds.mp3',
       ],
+      playerDying: [
+        'assets/audio/player-dying.mp3',
+        'assets/audio/player-death.mp3',
+        'player-dying.mp3',
+      ],
     };
 
     await Promise.all(Object.entries(files).map(async ([name, candidates]) => {

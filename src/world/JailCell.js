@@ -19,6 +19,68 @@ export const JAIL = {
   barRadius: 0.055,
 };
 
+// Find somewhere the cell actually fits.
+//
+// Dropping it at a hardcoded corner put it inside a pine clump — the same trap
+// the boss fell into. Tree trunks are in `world.colliders`, but their canopies
+// are several metres wider than the trunk, so the clearance has to be generous.
+//
+// Searches rings outward from the preferred spot and takes the first position
+// with nothing solid within `clear` metres and no building nearby.
+export function findCellSpot(world, prefer, { clear = 9, fromBuildings = 16 } = {}) {
+  const bounds = (world.bounds ?? 48) - 8;
+  const ok = (x, z, need) => {
+    if (Math.abs(x) > bounds || Math.abs(z) > bounds) return false;
+    if (Math.hypot(x, z) < 14) return false;                 // not on top of the table
+    for (const b of world.buildingSpots ?? []) {
+      if (Math.hypot(x - b.x, z - b.z) < fromBuildings) return false;
+    }
+    // Tree clumps by their DECLARED centres, not by their colliders: the models
+    // load asynchronously and the colliders do not exist yet when the cell is
+    // placed. Checking the live list alone put the first cell inside a pine
+    // clump and reported 9m of clearance while doing it.
+    const clumpR = (world.clumpRadius ?? 7) + need;
+    for (const [cx, cz] of world.treeClumps ?? []) {
+      if (Math.hypot(x - cx, z - cz) < clumpR) return false;
+    }
+    for (const c of world.colliders) {
+      // distance from the point to the collider box, inflated by its own size
+      const dx = Math.max(0, Math.abs(x - c.x) - c.hw);
+      const dz = Math.max(0, Math.abs(z - c.z) - c.hd);
+      if (Math.hypot(dx, dz) < need) return false;
+    }
+    return true;
+  };
+
+  const search = (need) => {
+    if (ok(prefer.x, prefer.z, need)) return prefer.clone();
+    for (let r = 4; r <= 46; r += 2.5) {
+      for (let i = 0; i < 32; i++) {
+        const a = (i / 32) * Math.PI * 2;
+        const x = prefer.x + Math.cos(a) * r;
+        const z = prefer.z + Math.sin(a) * r;
+        if (ok(x, z, need)) return new THREE.Vector3(x, 0, z);
+      }
+    }
+    return null;
+  };
+
+  // Step the requirement down rather than giving up. Asking for 9m of clear
+  // ground away from every fence, rock, tree and booth has no solution on this
+  // map, and the first version silently fell back to the preferred spot —
+  // which was inside a pine clump.
+  for (const need of [clear, clear - 2, clear - 3.5, clear - 5]) {
+    const found = search(Math.max(3, need));
+    if (found) {
+      console.log(`[jail] placed at ${found.x.toFixed(1)}, ${found.z.toFixed(1)} (${need.toFixed(1)}m clear)`);
+      return found;
+    }
+  }
+
+  console.warn('[jail] no clear spot found, using the preferred one');
+  return prefer.clone();
+}
+
 export class JailCell {
   constructor(scene, world, position, yaw = 0) {
     this.world = world;

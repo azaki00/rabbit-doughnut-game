@@ -18,6 +18,14 @@ export class Greybox {
       { x:  14, z:  33, yaw: -Math.PI * 0.30 },  // Cottage
     ];
 
+    // Where the interior tree clumps go. Declared HERE rather than inside the
+    // async `_trees()`, because anything that needs to avoid the trees — the
+    // cell, for one — is placed long before the models finish loading, and a
+    // clearance check against a collider list that is still empty passes
+    // everything.
+    this.treeClumps = [[-27, 22], [26, 26], [-30, -26], [31, -20], [-4, -30], [34, 8]];
+    this.clumpRadius = 7;   // spread of a clump plus its canopy
+
     this._ground();
     this._table();
     this._fences();
@@ -61,7 +69,7 @@ export class Greybox {
     }
 
     // interior clumps — these DO collide, and give rabbits something to break around
-    const clumps = [[-27, 22], [26, 26], [-30, -26], [31, -20], [-4, -30], [34, 8]]
+    const clumps = this.treeClumps
       .filter(([cx, cz]) => !this.buildingSpots.some(b => Math.hypot(cx - b.x, cz - b.z) < 15));
     for (const [cx, cz] of clumps) {
       const n = 2 + Math.floor(Math.random() * 3);

@@ -30,7 +30,9 @@ import { Impacts } from "./world/Impacts.js";
 import { Music } from "./audio/Music.js";
 import { HealingBooth, HEAL, clinicSpot } from "./world/HealingBooth.js";
 import { Sky } from "./world/Sky.js";
-import { JailCell } from "./world/JailCell.js";
+import { JailCell, findCellSpot } from "./world/JailCell.js";
+import { Merchant, MERCHANT } from "./world/Merchant.js";
+import { Dialogue } from "./ui/Dialogue.js";
 import { Wasted, WASTED } from "./ui/Wasted.js";
 
 // HARE & GLAZE — M1 "Feel" + the M2 saltation gait.
@@ -161,19 +163,39 @@ horses.onScare = (origin, radius) => {
   for (const r of rabbits) r.scare(origin, radius, player, { silent: true });
 };
 
+// ── the Stranger ──
+// Far corner of the map, with a cart and a brazier. He has the only Tenderiser
+// in the world and does not know what it is.
+const merchant = new Merchant(
+  engine.scene,
+  world,
+  findCellSpot(world, MERCHANT.prefer.clone(), { clear: 7, fromBuildings: 12 }),
+  sfx,
+);
+const dialogue = new Dialogue(sfx);
+
 // ── the cell ──
 // Out at the south-west edge, so dying also costs you the walk back. Kept
 // axis-aligned: the world's colliders are AABBs and one building is not worth
 // teaching them about rotation.
-const jail = new JailCell(engine.scene, world, new THREE.Vector3(-27, 0, -27), 0);
+const jail = new JailCell(
+  engine.scene,
+  world,
+  findCellSpot(world, new THREE.Vector3(-27, 0, -27)),
+  0,
+);
 const wasted = new Wasted();
 
 // ── sky, clouds and weather ──
 // Clear and blue until the Sovereign is out, then it is not.
 const sky = new Sky(engine, sfx);
+// none of the weather counts as something standing in the way of a conversation
+sky.dome.userData.noChatBlock = true;
+sky.rain.userData.noChatBlock = true;
 
 // ── bullet marks ── every shot leaves something behind for 4 seconds
 const impacts = new Impacts(engine.scene);
+impacts.group.userData.noChatBlock = true;
 
 // ── the meat you shot ── shot rabbits pay on collection, not on the shot
 const meat = new MeatDrops(engine.scene, world, sfx);
@@ -221,32 +243,8 @@ const boss = new EggBoss(
 
 const TABLE_POS = new THREE.Vector3(0, 0, 0); // cooking table, map centre §6.1
 
-// ── the Tenderiser on display ──
-// Turning slowly over the first of the table's four stations, so the thing you
-// are being asked for 1000c is a thing you can walk up to and look at. It is
-// the same geometry as the viewmodel, and it vanishes the moment you own it —
-// because at that point it is in your hands.
-const tenderiserDisplay = new THREE.Group();
-{
-  const shown = buildTenderiser();
-  shown.scale.setScalar(1.8); // display size, not hand size — it has to read across the clearing
-  shown.traverse((o) => {
-    if (o.isMesh) o.castShadow = true;
-  });
-  tenderiserDisplay.add(shown);
-
-  // a pedestal glow, so it reads as "for sale" rather than "left lying there"
-  const glow = new THREE.PointLight(0xffd9a0, 1.1, 4.5, 2);
-  glow.position.y = -0.25;
-  tenderiserDisplay.add(glow);
-  tenderiserDisplay.userData.glow = glow;
-
-  const seat = world.stations?.[0] ?? new THREE.Vector3(-1.6, 1.53, 0);
-  tenderiserDisplay.position.set(seat.x, seat.y + 0.76, seat.z);
-  tenderiserDisplay.userData.baseY = tenderiserDisplay.position.y;
-  engine.scene.add(tenderiserDisplay);
-}
-let displayT = 0;
+// The Tenderiser is no longer sold here. It belongs to the Stranger in the
+// far corner, and you have to go and talk to him for it — see Merchant.js.
 const shellBar = document.getElementById("shellBar");
 const shellPips = shellBar.querySelector(".shellPips");
 const shellHint = shellBar.querySelector(".shellHint");
@@ -282,6 +280,7 @@ function die() {
   player.dashTime = 0;
   promptEl.className = "";
 
+  player.collapse();       // the camera falls to the grass and stays there
   sfx.playerDeath?.();
   wasted.show();
   document.exitPointerLock?.();
@@ -298,9 +297,7 @@ wasted.onRelease = () => {
   player.pitch = 0;
   player.frozen = 0;
   player.tumble = 0;
-  player.tumbleDrop = 0;
-  player.tumbleRoll = 0;
-  player.tumblePitch = 0;
+  player.standUp();
   player.stamina.value = STAM_MAX;
 
   hud.say("The door is open. Walk out.", "bad", 3.2);
@@ -349,6 +346,452 @@ mating.onBorn = (typeDef, at) => {
     `[mutant] ${typeDef.name} scale ${typeDef.scale.toFixed(2)} value ${typeDef.value}`,
   );
 };
+
+// ── talking to the Stranger ──────────────────────────────────────────────────
+//
+// Elder-Scrolls framing: the camera leaves the player's head, eases in to a
+// spot beside his face, and stays there until you leave. The player is frozen
+// for the duration, which is why the whole conversation is one state flag.
+
+const CHAT = { easeIn: 0.9, easeOut: 0.55 };
+const chat = {
+  on: false,
+  t: 0,
+  from: new THREE.Vector3(),
+  fromQuat: new THREE.Quaternion(),
+  to: null,
+  leaving: false,
+};
+
+const _lookM = new THREE.Matrix4();
+const _lookQ = new THREE.Quaternion();
+
+function merchantTree() {
+  const bought = () => hammer.owned;
+  const afford = () => state.coins >= HAMMER.price;
+  const short = () => HAMMER.price - state.coins;
+
+  // THE HAMMER IS THE FIRST OPTION ON THE FIRST SCREEN, and on most screens
+  // after it. It is the only thing gating the boss fight, and burying it two
+  // clicks behind small talk is how you get a player who has met the merchant,
+  // liked him, and still cannot crack the egg.
+  const buyOption = () =>
+    bought()
+      ? null
+      : {
+          label: afford()
+            ? "Buy the big hammer."
+            : `Buy the big hammer. (You need ${short()}c more.)`,
+          cost: HAMMER.price + "c",
+          disabled: !afford(),
+          do: () => buyHammer(),
+        };
+
+  const withBuy = (rest) => {
+    const b = buyOption();
+    return b ? [b, ...rest] : rest;
+  };
+
+  return {
+    speaker: "The Stranger",
+    start: "greet",
+    nodes: {
+      greet: {
+        text: () =>
+          bought()
+            ? "You again. Still got the hammer, I see. Still got all your fingers, " +
+              "which is more than I had you down for. What is it this time?"
+            : "Ah. A glove. A red one. You are the fourth this season, and the other " +
+              "three stopped coming past, so either they got rich or they got eaten. " +
+              "Sit. Do not sit. I have a fire, a hammer, and nowhere at all to be.",
+        options: () =>
+          withBuy([
+            { label: "What else have you got?", to: "wares" },
+            { label: "Tell me about the rabbits.", to: "rabbits" },
+            { label: "What do you know about doughnuts?", to: "doughnuts" },
+            { label: "Who are you, exactly?", to: "who" },
+            { label: "Nothing. Goodbye.", to: null },
+          ]),
+      },
+
+      // ── the sale ──
+      sold: {
+        text:
+          "Thank you for paying. But I don't know what's it for. But it does some " +
+          "decent damage.",
+        options: () => [
+          { label: "That is it? That is the whole pitch?", to: "soldMore" },
+          { label: "...Right.", to: "greet" },
+          { label: "Goodbye.", to: null },
+        ],
+      },
+
+      soldMore: {
+        text:
+          "What else do you want? It is heavy. It has studs. It has never once " +
+          "failed to hit a thing I swung it at. I would call that a complete " +
+          "description of a hammer. The rest is between you and whatever you hit.",
+        options: () => [
+          { label: "Fair enough.", to: "greet" },
+          { label: "Goodbye.", to: null },
+        ],
+      },
+
+      wares: {
+        text: () =>
+          bought()
+            ? "That was the stock. The rest of this cart is turnips, a broken axle, " +
+              "and a jar I have decided not to open. You are welcome to the turnips."
+            : "One item. Big hammer, studded head, weighs like a bad decision. A " +
+              "woman traded it for one night by the fire and left before dawn " +
+              "without it, which I have thought about more than I would like. " +
+              HAMMER.price + " coins.",
+        options: () =>
+          withBuy([
+            { label: "What is in the jar?", to: "jar" },
+            { label: "Something else.", to: "greet" },
+            { label: "Goodbye.", to: null },
+          ]),
+      },
+
+      jar: {
+        text:
+          "It was a doughnut. In the spring. It is now a resident. I have named it " +
+          "and I would rather not disturb the arrangement.",
+        options: () =>
+          withBuy([
+            { label: "What else have you got?", to: "wares" },
+            { label: "Goodbye.", to: null },
+          ]),
+      },
+
+      // ── the rabbits ──
+      rabbits: {
+        text:
+          "They hear you long before they see you, and they see very nearly " +
+          "everything. Crouch and they forget you exist. Fire that gun and every " +
+          "ear inside forty metres turns at once — and then you are alone in a " +
+          "field you just emptied, walking out to fetch your own meat.",
+        options: () =>
+          withBuy([
+            { label: "What about the black one?", to: "black" },
+            { label: "They breed out here, don't they?", to: "breeding" },
+            { label: "Any advice on catching them?", to: "catching" },
+            { label: "Something else.", to: "greet" },
+          ]),
+      },
+
+      black: {
+        text:
+          "It does not run. That is the part that should worry you. Everything else " +
+          "out here has the decency to leave; that one circles. Stand near it long " +
+          "enough and you will notice the meadow has gone quiet, and then you will " +
+          "notice that you noticed. Do not eat it raw. Somebody always does.",
+        options: () => [
+          { label: "What happens if you do?", to: "blackEat" },
+          { label: "Something else.", to: "greet" },
+        ],
+      },
+
+      blackEat: {
+        text:
+          "You find out. That is the honest answer. A man came through last autumn " +
+          "who found out, and he was extremely clear about it afterwards, and I " +
+          "still did not understand one word.",
+        options: () => [
+          { label: "Right. Something else.", to: "greet" },
+          { label: "Goodbye.", to: null },
+        ],
+      },
+
+      breeding: {
+        text:
+          "They do, and you will want to be elsewhere when they finish. Ten seconds " +
+          "of the pair of them shoving each other about with hearts over their " +
+          "heads — very sweet, very public — and then out walks something with the " +
+          "wrong number of ears and a price on it. It is slow. That is the mercy.",
+        options: () => [
+          { label: "That sounds horrifying.", to: "breeding2" },
+          { label: "Something else.", to: "greet" },
+        ],
+      },
+
+      breeding2: {
+        text:
+          "It is a living. Frighten either one and it stops, mind — so if you are " +
+          "stood there with the gun deciding between two ordinary rabbits now and " +
+          "one enormous one shortly, that is the entire trade. I would wait. I " +
+          "never wait.",
+        options: () =>
+          withBuy([
+            { label: "Something else.", to: "greet" },
+            { label: "Goodbye.", to: null },
+          ]),
+      },
+
+      catching: {
+        text:
+          "Buy a carrot from the hamster behind the timber house. Five coins, and " +
+          "worth every one. Throw it and they stop dead to eat it, and a rabbit " +
+          "that has stopped is a rabbit you can reach. That is the whole trick and " +
+          "it took me two years.",
+        options: () => [
+          { label: "A hamster sells carrots.", to: "hamster" },
+          { label: "Something else.", to: "greet" },
+        ],
+      },
+
+      hamster: {
+        text:
+          "He does. He has a stall, an awning and a painted sign, and he is a " +
+          "hamster. I stopped asking in my first month. Out here you take your " +
+          "commerce as you find it.",
+        options: () => [
+          { label: "Something else.", to: "greet" },
+          { label: "Goodbye.", to: null },
+        ],
+      },
+
+      // ── doughnuts ──
+      doughnuts: {
+        text:
+          "Ha! Rabbit into flour into ring into money. I have heard that pitch four " +
+          "times now and I have never once seen a finished doughnut. Somebody " +
+          "always gets distracted by the egg.",
+        options: () =>
+          withBuy([
+            { label: "What egg?", to: "egg" },
+            { label: "You don't believe in the plan?", to: "plan" },
+            { label: "Something else.", to: "greet" },
+          ]),
+      },
+
+      plan: {
+        text:
+          "I believe in the plan. I have watched four people believe in the plan " +
+          "very hard, right up to the moment they picked up a hammer. Nobody has " +
+          "ever come back and said 'I made the doughnut'. They come back and say " +
+          "things about the egg.",
+        options: () =>
+          withBuy([
+            { label: "What egg?", to: "egg" },
+            { label: "Something else.", to: "greet" },
+          ]),
+      },
+
+      egg: {
+        text:
+          "South-east. You will know it — it is the enormous one. Do not shoot it. " +
+          "I have watched a man empty a gun into that shell and achieve nothing but " +
+          "noise and a very great deal of attention. It wants breaking, not shooting.",
+        options: () =>
+          withBuy([
+            { label: "Breaking with what, exactly?", to: "eggHammer" },
+            { label: "What happens when it breaks?", to: "eggAfter" },
+            { label: "Something else.", to: "greet" },
+          ]),
+      },
+
+      eggHammer: {
+        text: () =>
+          bought()
+            ? "You are holding it. I am not saying that is what it is for. I am " +
+              "saying I have never heard a better argument for owning one."
+            : "I could not say. I have a large hammer with studs on it and no use " +
+              "for it, and there is a very large egg that wants hitting, and I have " +
+              "drawn no connection between those two facts whatsoever.",
+        options: () =>
+          withBuy([
+            { label: "Something else.", to: "greet" },
+            { label: "Goodbye.", to: null },
+          ]),
+      },
+
+      eggAfter: {
+        text:
+          "Then it is awake, and the weather turns, and you will wish it had not. " +
+          "It gets worse as it gets hurt — starts throwing chickens. Live ones. " +
+          "They land running. I would bring something to shoot them with and " +
+          "something to drink.",
+        options: () =>
+          withBuy([
+            { label: "Chickens.", to: "chickens" },
+            { label: "Something else.", to: "greet" },
+          ]),
+      },
+
+      chickens: {
+        text:
+          "Chickens. I said it plainly and you have made me say it twice. There is " +
+          "a clinic out by the cottage — the old man there sells a shake that puts " +
+          "you back together. Buy two. Carry them. Nobody in the history of this " +
+          "meadow has regretted carrying two.",
+        options: () =>
+          withBuy([
+            { label: "Something else.", to: "greet" },
+            { label: "Goodbye.", to: null },
+          ]),
+      },
+
+      // ── him ──
+      who: {
+        text:
+          "A man with a cart and no wheel on it. I came out here to sell things to " +
+          "people who bake, and instead I sell one hammer a year to whoever is " +
+          "still walking. The fire is warm. The rabbits are quiet. It is not a bad " +
+          "life, if you do not count the egg.",
+        options: () =>
+          withBuy([
+            { label: "Why don't you fix the cart?", to: "cart" },
+            { label: "Something else.", to: "greet" },
+            { label: "Goodbye.", to: null },
+          ]),
+      },
+
+      cart: {
+        text:
+          "And go where? Every direction from here is trees, and one direction is " +
+          "trees and an egg. No. The axle stays broken. It is the only thing " +
+          "keeping me sensible.",
+        options: () => [
+          { label: "Something else.", to: "greet" },
+          { label: "Goodbye.", to: null },
+        ],
+      },
+    },
+  };
+}
+
+function buyHammer() {
+  if (hammer.owned || state.coins < HAMMER.price) { sfx.deny(); return; }
+  state.coins -= HAMMER.price;
+  hammer.owned = true;
+  sfx.purchase();
+  document.getElementById("hammerSlot").classList.remove("locked");
+  hud.say("THE TENDERISER — press 3", "good", 2.6);
+  dialogue._goto("sold");
+}
+
+// ── an unobstructed shot, guaranteed ──
+//
+// The merchant stands in a shack, in a grove, next to a cart. Any fixed camera
+// offset will eventually be inside one of them. So: try each of his framings in
+// turn, raycast from his FACE out to that camera spot, and take the first with
+// a clear line. If every one is blocked, pull the best one in to just short of
+// whatever is in the way.
+//
+// Things that must never count as an obstruction — the sky, the rain, clouds,
+// decals, hearts and the man himself — are flagged `noChatBlock` and skipped.
+const _chatRay = new THREE.Raycaster();
+const _chatDir = new THREE.Vector3();
+
+function blocksChat(obj) {
+  for (let o = obj; o; o = o.parent) if (o.userData?.noChatBlock) return false;
+  return true;
+}
+
+function clearChatSpot() {
+  const look = merchant.lookAt;
+  let fallback = null;
+
+  for (const want of merchant.focusCandidates()) {
+    _chatDir.subVectors(want, look);
+    const dist = _chatDir.length();
+    _chatDir.normalize();
+    _chatRay.set(look, _chatDir);
+    _chatRay.far = dist;
+    _chatRay.near = 0.02;
+
+    const hits = _chatRay
+      .intersectObjects(engine.scene.children, true)
+      .filter((h) => blocksChat(h.object));
+
+    if (!hits.length) return want;                  // clear line — take it
+    if (!fallback) {
+      // remember how far we COULD get along the best framing
+      const d = Math.max(0.6, hits[0].distance - 0.25);
+      fallback = look.clone().addScaledVector(_chatDir, d);
+    }
+  }
+  return fallback ?? merchant.focus;
+}
+
+function startChat() {
+  if (chat.on) return;
+  chat.on = true;
+  chat.leaving = false;
+  chat.t = 0;
+  chat.from.copy(engine.camera.position);
+  chat.fromQuat.copy(engine.camera.quaternion);
+  chat.to = clearChatSpot();
+  chat.recheck = 0;
+  merchant.talking = true;
+  promptEl.className = "";
+  document.exitPointerLock?.();
+  dialogue.start(merchantTree());
+}
+
+function endChat() {
+  if (!chat.on || chat.leaving) return;
+  chat.leaving = true;
+  chat.t = 0;
+  merchant.talking = false;
+}
+
+dialogue.onClose = () => endChat();
+
+// The camera move. Eased both ways, and it hands control back to the player
+// controller only once it has finished returning.
+function updateChatCamera(dt) {
+  if (!chat.on) return false;
+  chat.t += dt;
+
+  // RE-CHECK, don't decide once.
+  //
+  // The grove around him loads asynchronously, so a spot chosen at the moment
+  // you press E can have a pine grow through it a frame later — which is
+  // exactly what happened. Re-testing four times a second also handles a horse
+  // wandering between you and him mid-sentence.
+  chat.recheck -= dt;
+  if (!chat.leaving && chat.recheck <= 0) {
+    chat.recheck = 0.25;
+    const next = clearChatSpot();
+    // ease toward it rather than cutting, so a re-check is never a jump
+    if (chat.to) chat.to.lerp(next, chat.t < CHAT.easeIn ? 1 : 0.35);
+    else chat.to = next;
+  }
+
+  const cam = engine.camera;
+  const spot = chat.to ?? merchant.focus;
+  if (!chat.leaving) {
+    const k = Math.min(1, chat.t / CHAT.easeIn);
+    const e = 1 - Math.pow(1 - k, 3);
+    cam.position.lerpVectors(chat.from, spot, e);
+    _lookM.lookAt(cam.position, merchant.lookAt, ENGINE_UP);
+    _lookQ.setFromRotationMatrix(_lookM);
+    cam.quaternion.slerpQuaternions(chat.fromQuat, _lookQ, e);
+    return true;
+  }
+
+  // leaving: back to wherever the player is standing and looking
+  player.applyToCamera(_returnCam);
+  const k = Math.min(1, chat.t / CHAT.easeOut);
+  const e = 1 - Math.pow(1 - k, 3);
+  cam.position.lerpVectors(spot, _returnCam.position, e);
+  _lookM.lookAt(spot, merchant.lookAt, ENGINE_UP);
+  _lookQ.setFromRotationMatrix(_lookM);
+  cam.quaternion.slerpQuaternions(_lookQ, _returnCam.quaternion, e);
+
+  if (k >= 1) {
+    chat.on = false;
+    chat.leaving = false;
+    if (!input.locked) input.lock();
+  }
+  return true;
+}
+
+const ENGINE_UP = new THREE.Vector3(0, 1, 0);
+const _returnCam = new THREE.PerspectiveCamera();
 
 // ── spawning ─────────────────────────────────────────────────────────────────
 
@@ -696,6 +1139,7 @@ function step(dt) {
   // Nothing the player owns updates: no look, no movement, no weapons. The
   // world keeps running underneath, which is the whole point of the shot.
   if (state.dead) {
+    player.updateDeathCam(dt);
     wasted.update(dt);
     for (const r of rabbits) r.update(dt, player);
     carrots.update(dt, rabbits);
@@ -708,6 +1152,32 @@ function step(dt) {
     if (boss.alive) boss.update(dt, player);
     sky.setStorm(boss.alive && boss.awake, boss.rage);
     sky.update(dt, engine.camera);
+    input.endStep();
+    return;
+  }
+
+  // ── in conversation ──
+  // The player is a spectator: no look, no movement, no weapons. The world
+  // keeps running behind the box, which is what stops it feeling like a menu.
+  if (chat.on) {
+    dialogue.update(dt);
+    merchant.update(dt);
+    for (const r of rabbits) r.update(dt, player);
+    carrots.update(dt, rabbits);
+    mating.update(dt, rabbits);
+    horses.update(dt);
+    chickens.update(dt, player);
+    impacts.update(dt);
+    meat.update(dt, player.pos);
+    healing.update(dt);
+    jail.update(dt);
+    if (boss.alive) boss.update(dt, player);
+    sky.setStorm(boss.alive && boss.awake, boss.rage);
+    sky.update(dt, engine.camera);
+    glove.root.visible = false;
+    gun.root.visible = false;
+    hammer.root.visible = false;
+    brush.root.visible = false;
     input.endStep();
     return;
   }
@@ -812,25 +1282,13 @@ function step(dt) {
   horses.update(dt);
   healing.update(dt);
   jail.update(dt);
+  merchant.update(dt);
   // The storm is on for exactly as long as the Sovereign is out of its shell.
   sky.setStorm(boss.alive && boss.awake, boss.rage);
   sky.update(dt, engine.camera);
   impacts.update(dt);
   meat.update(dt, player.pos);
   chickens.update(dt, player);
-
-  // ── the Tenderiser turning over station 1 ──
-  if (hammer.owned) {
-    tenderiserDisplay.visible = false;
-  } else {
-    displayT += dt;
-    tenderiserDisplay.visible = true;
-    tenderiserDisplay.rotation.y = displayT * 0.7;          // slow full turn
-    tenderiserDisplay.position.y =
-      tenderiserDisplay.userData.baseY + Math.sin(displayT * 1.5) * 0.07;
-    tenderiserDisplay.userData.glow.intensity =
-      1.0 + Math.sin(displayT * 2.2) * 0.35;
-  }
 
   updateBlackRabbit(dt);
 
@@ -871,9 +1329,20 @@ function step(dt) {
   }
   const horsePrompt = horses.riding || !!nearHorse;
 
+  // ── the Stranger ──
+  const atMerchant =
+    !reel.visible && !horsePrompt && merchant.canTalk(player.pos);
+  if (atMerchant) {
+    promptEl.className = "show";
+    promptEl.innerHTML =
+      `<kbd>E</kbd>Talk to the Stranger` +
+      (hammer.owned ? "" : `&nbsp; <span style="opacity:.5">— he is selling something</span>`);
+    if (input.hit("interact")) startChat();
+  }
+
   // ── the healing booth ── 300c to be patched up, 150c to carry one
   const atHealing =
-    !reel.visible && !horsePrompt && healing.canUse(player.pos);
+    !reel.visible && !horsePrompt && !atMerchant && healing.canUse(player.pos);
   if (atHealing) {
     const hurtNow = state.health < 1;
     const canFull = state.coins >= HEAL.fullPrice && hurtNow;
@@ -917,7 +1386,11 @@ function step(dt) {
 
   // ── the hamster: carrots at 5c ──
   const atTrader =
-    !reel.visible && !horsePrompt && !atHealing && carrots.canTrade(player.pos);
+    !reel.visible &&
+    !horsePrompt &&
+    !atMerchant &&
+    !atHealing &&
+    carrots.canTrade(player.pos);
   if (atTrader) {
     const afford = state.coins >= CARROT.price;
     promptEl.className = "show" + (afford ? "" : " cant");
@@ -937,30 +1410,9 @@ function step(dt) {
     }
   }
 
-  // ── the table: buy the Tenderiser ── 1000c
-  const atTable =
-    !reel.visible &&
-    !horsePrompt &&
-    !atHealing &&
-    !atTrader &&
-    player.pos.distanceTo(TABLE_POS) < 3.4;
-  if (atTable && !hammer.owned) {
-    const afford = state.coins >= HAMMER.price;
-    promptEl.className = "show" + (afford ? "" : " cant");
-    promptEl.innerHTML = `<kbd>E</kbd>Buy THE TENDERISER &nbsp;<span class="cost">${HAMMER.price}c</span>`;
-    if (input.hit("interact")) {
-      if (afford) {
-        state.coins -= HAMMER.price;
-        hammer.owned = true;
-        sfx.purchase();
-        hud.say("THE TENDERISER — press 3", "good", 2.6);
-        document.getElementById("hammerSlot").classList.remove("locked");
-      } else {
-        sfx.deny();
-        hud.say(`You need ${HAMMER.price - state.coins}c more`, "bad");
-      }
-    }
-  }
+  // The cooking table sells nothing now. The Tenderiser is the Stranger's, and
+  // `atTable` survives only so the other prompts keep their priority order.
+  const atTable = false;
 
   // ── the sealed egg ──
   if (boss.alive && boss.sealed) {
@@ -975,7 +1427,7 @@ function step(dt) {
       );
       shellHint.textContent = hammer.owned
         ? "Press 3, then swing."
-        : `Only the Tenderiser will crack this. ${HAMMER.price}c at the table.`;
+        : `Only the Tenderiser will crack this. The Stranger sells one, ${HAMMER.price}c.`;
     }
   } else {
     shellBar.classList.remove("show");
@@ -985,7 +1437,7 @@ function step(dt) {
   // Whichever of the three you are actually looking at wins; the other two
   // dim back down.
   let openChest = null;
-  if (!reel.visible && !horsePrompt && !atHealing) {
+  if (!reel.visible && !horsePrompt && !atMerchant && !atHealing) {
     let bestD = Infinity;
     for (const ch of chests) {
       if (!ch.canUse(player.pos, player.forward)) continue;
@@ -1019,6 +1471,7 @@ function step(dt) {
     }
   } else if (
     !atTrader &&
+    !atMerchant &&
     !atHealing &&
     !horsePrompt &&
     (!atTable || hammer.owned)
@@ -1053,7 +1506,9 @@ function frame() {
   requestAnimationFrame(frame);
   time.tick(step);
 
-  player.applyToCamera(engine.camera);
+  // The conversation camera takes over from the controller while it is easing
+  // in, held, and easing back out.
+  if (!updateChatCamera(time.frameDt)) player.applyToCamera(engine.camera);
 
   hud.update(time.frameDt, {
     charging: glove.charging,
@@ -1094,7 +1549,7 @@ hammer ${hammer.owned ? "OWNED" : "not bought"}
 horse  ${horses.riding ? `RIDING ${horses.secondsLeft.toFixed(1)}s` : horses.list.map((h) => h.state[0]).join("")}
 chick  ${chickens.liveCount} live   meat ${meat.pending} on the ground   marks ${impacts.live.length}
 music  ${music.current ?? "-"}   shake ${state.proteinShake}
-dead   ${state.dead ? `YES ${wasted.t.toFixed(1)}s` : "no"}
+dead   ${state.dead ? `YES ${wasted.t.toFixed(1)}s` : "no"}   chat ${chat.on ? (chat.leaving ? "leaving" : dialogue.node) : "-"}
 storm  ${sky.storm.toFixed(2)}  rain ${sky.rain.visible ? "on" : "off"}  strike in ${sky.strikeIn.toFixed(1)}s
 heal   ${(state.health * 100).toFixed(0)}%   kits ${state.healKits}   weapon4 ${brush.owned ? "toothbrush" : "-"}`,
     );
@@ -1160,12 +1615,24 @@ document
 // Clicking the world re-locks. Without this, any stray Esc drops you into a
 // state where the keys look broken because movement is gated on pointer lock.
 canvas.addEventListener("click", () => {
-  if (!input.locked && !settings.visible && !reel.visible) enterGame();
+  if (input.locked || settings.visible || reel.visible) return;
+  // clicking the world during a conversation or a death must not re-grab the
+  // cursor — you need it to pick a reply
+  if (chat.on || dialogue.visible || state.dead) return;
+  enterGame();
 });
 
 // Esc leaves pointer lock; show settings rather than a bare gate.
+//
+// But NOT every unlock is an Esc. The case reel, a conversation and the death
+// screen all release the cursor deliberately, and each of those released it
+// straight into the settings menu until this list existed. Anything that takes
+// the cursor on purpose has to be named here.
 input.onUnlock = () => {
-  if (reel.visible) return;
+  if (reel.visible) return;      // opening a case
+  if (chat.on) return;           // talking to the Stranger
+  if (dialogue.visible) return;
+  if (state.dead) return;        // the WASTED screen
   settings.open();
 };
 input.onToggleDebug = () => hud.toggleDebug();
@@ -1196,6 +1663,12 @@ window.GAME = {
   chickens,
   sky,
   jail,
+  merchant,
+  dialogue,
+  chat,
+  startChat,
+  endChat,
+  updateChatCamera,
   wasted,
   die,
   mating,

@@ -82,16 +82,16 @@
   <h1>HARE &amp; GLAZE</h1>
   <div class="sub">Build progress — every step taken, in progress, or considered.</div>
   <div class="meta">
-    Last updated: 2026-09-04 &nbsp;·&nbsp; Milestone 1 “Feel” + M2 gait, plus the systems below<br>
+    Last updated: 2026-09-04 (rev 3) &nbsp;·&nbsp; Milestone 1 “Feel” + M2 gait, plus the systems below<br>
     Estimates are ideal working time for one developer. “Actual” is what it took here, including debugging.
   </div>
 </header>
 
 <div class="totals">
-  <div class="stat"><b>41</b><span>Shipped</span></div>
+  <div class="stat"><b>49</b><span>Shipped</span></div>
   <div class="stat"><b>0</b><span>In progress</span></div>
   <div class="stat"><b>12</b><span>Planned</span></div>
-  <div class="stat"><b>~63 h</b><span>Est. shipped</span></div>
+  <div class="stat"><b>~77 h</b><span>Est. shipped</span></div>
   <div class="stat"><b>~97 h</b><span>Est. remaining</span></div>
 </div>
 
@@ -419,6 +419,85 @@
 </table>
 
 <!-- ══════════════════════════════════════════════════════════════════ -->
+<h2>Sky, weather and death</h2>
+<table>
+<thead><tr><th style="width:42%">Task</th><th style="width:11%">Status</th><th style="width:11%">Est.</th><th style="width:11%">Actual</th><th>Notes</th></tr></thead>
+<tbody>
+<tr>
+  <td><span class="what">Sky dome + clouds</span>
+    <span class="note">Three-stop gradient dome shader; 46 instanced drifting clouds.</span>
+    <span class="files">src/world/Sky.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">2 h</td><td class="act">2 h</td>
+  <td>A flat <code>scene.background</code> cannot put red at the horizon and black overhead at once.</td>
+</tr>
+<tr>
+  <td><span class="what">The boss storm</span>
+    <span class="note">One <code>storm</code> value drives sky, fog, clouds, sun, ambient, 1800 rain
+      streaks and lightning. Arrives when the shell cracks, clears when it dies.</span>
+    <span class="files">src/world/Sky.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">3 h</td><td class="act">3.5 h</td>
+  <td>All real scene state — the rabbits, the meat and your hands all sit in it.</td>
+</tr>
+<tr>
+  <td><span class="what">WASTED death screen</span>
+    <span class="note">GTA-style card: canvas desaturates and blurs, vignette closes, the word
+      crawls up, 15s countdown while a taunt types itself out.</span>
+    <span class="files">src/ui/Wasted.js, styles/hud.css</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">1.5 h</td><td class="act">2 h</td>
+  <td class="over"><span class="a">backdrop-filter does not composite over a WebGL canvas — the first version was
+    full colour with a faint vignette. Filtering the canvas element works.</span></td>
+</tr>
+<tr>
+  <td><span class="what">Death camera</span>
+    <span class="note">The view collapses to 25cm off the grass, rolls onto its side and looks up.</span>
+    <span class="files">src/player/Controller.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">45 m</td><td class="act">45 m</td>
+  <td>Separate from the horse tumble, because it never gets back up.</td>
+</tr>
+<tr>
+  <td><span class="what">The cell</span>
+    <span class="note">Respawn point. Three solid walls and a barred front with the door standing
+      open; real collision on everything but the doorway.</span>
+    <span class="files">src/world/JailCell.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">2 h</td><td class="act">3 h</td>
+  <td class="over"><span class="a">Placed inside a pine clump twice: the trees load asynchronously, so a clearance
+    scan against <code>world.colliders</code> at build time passes everything.</span></td>
+</tr>
+</tbody>
+</table>
+
+<h2>NPCs and conversation</h2>
+<table>
+<thead><tr><th style="width:42%">Task</th><th style="width:11%">Status</th><th style="width:11%">Est.</th><th style="width:11%">Actual</th><th>Notes</th></tr></thead>
+<tbody>
+<tr>
+  <td><span class="what">The Stranger</span>
+    <span class="note">Merchant in the far corner, standing in the mouth of a shack with a broken
+      cart. Sells the Tenderiser — which is no longer available at the cooking table.</span>
+    <span class="files">src/world/Merchant.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">2 h</td><td class="act">2.5 h</td>
+  <td>The hammer as a table line-item made the boss fight feel like a vending machine.</td>
+</tr>
+<tr>
+  <td><span class="what">Dialogue system</span>
+    <span class="note">Typed lines, numbered replies (1-9 / arrows / mouse), branching tree with
+      conditional options and purchase hooks.</span>
+    <span class="files">src/ui/Dialogue.js, styles/hud.css</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">2 h</td><td class="act">2 h</td>
+  <td>Its own key handler — the game's Input is action-mapped and pointer-lock gated.</td>
+</tr>
+<tr>
+  <td><span class="what">Conversation camera</span>
+    <span class="note">Elder-Scrolls zoom: the view leaves the player, eases onto his face, and eases
+      back when you leave. Framing derives from his own transform.</span>
+    <span class="files">src/main.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">1 h</td><td class="act">1.5 h</td>
+  <td class="over"><span class="a">Aiming at his head centred him behind the dialogue box; standing him deep in the
+    shack put the camera inside the roof beams.</span></td>
+</tr>
+</tbody>
+</table>
+
 <h2>Audio</h2>
 <table>
 <thead><tr><th style="width:42%">Task</th><th style="width:11%">Status</th><th style="width:11%">Est.</th><th style="width:11%">Actual</th><th>Notes</th></tr></thead>
@@ -444,6 +523,14 @@
     <span class="files">src/audio/Music.js</span></td>
   <td><span class="pill done">Done</span></td><td class="est">1.5 h</td><td class="act">1.5 h</td>
   <td>Streamed via MediaElementSource; a 3-minute loop as a raw buffer is ~30 MB.</td>
+</tr>
+<tr>
+  <td><span class="what">Thunder, death and chicken audio</span>
+    <span class="note">Thunder in a band nothing else uses; a two-second death glide; the chicken
+      clip plays in full and quietly on spawn, with per-bird muttering about once a second.</span>
+    <span class="files">src/audio/Sfx.js</span></td>
+  <td><span class="pill done">Done</span></td><td class="est">1 h</td><td class="act">1 h</td>
+  <td>Only one full chicken clip runs at a time, or a burst of two becomes a wall.</td>
 </tr>
 </tbody>
 </table>

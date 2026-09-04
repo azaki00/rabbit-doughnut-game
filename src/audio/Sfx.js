@@ -293,31 +293,45 @@ export class Sfx {
     o.start(at); o.stop(at + 0.24);
   }
 
-  // Thrown: the recorded squawk if there is one, pitched up because it is
-  // being hurled through the air. Otherwise two synthesized clucks and a whoosh.
+  // Thrown: the recorded clip in FULL, quietly, at its own speed.
+  //
+  // It runs several seconds, so overlapping copies turn a burst of two into a
+  // wall. Only one full playback runs at a time; anything thrown while it is
+  // still going gets a short synthesized squawk instead, which is what makes a
+  // flock sound like a flock rather than like clipping.
   chickenThrow() {
     const a = this.a; if (!a.ready) return;
     const t = a.t;
-    if (a.hasSample('chicken')) {
-      a.playSample('chicken', { gain: 0.7, rate: 1.1 + Math.random() * 0.2, bus: 'voice', at: t });
+    const busy = this._chickenClipUntil && t < this._chickenClipUntil;
+
+    if (a.hasSample('chicken') && !busy) {
+      const buf = a.samples.chicken;
+      a.playSample('chicken', { gain: 0.30, rate: 1, bus: 'voice', at: t });
+      this._chickenClipUntil = t + (buf?.duration ?? 3);
     } else {
-      this._cluck(t, 1050 + Math.random() * 260, 0.08);
-      this._cluck(t + 0.13, 1250 + Math.random() * 300, 0.055);
+      this._cluck(t, 1050 + Math.random() * 260, 0.045);
+      this._cluck(t + 0.13, 1250 + Math.random() * 300, 0.03);
     }
-    const { f } = this._noise('world', 'bandpass', 500, 1.1, 0.045, 0.03, 0.3, t);
+
+    const { f } = this._noise('world', 'bandpass', 500, 1.1, 0.03, 0.03, 0.3, t);
     f.frequency.exponentialRampToValueAtTime(1400, t + 0.28);
   }
 
-  // Landing: a scuff, and a lower, calmer squawk than the throw.
+  // Landing: a scuff and a low cluck. Quiet — the clip from the throw is
+  // usually still running underneath.
   chickenLand() {
     const a = this.a; if (!a.ready) return;
     const t = a.t;
-    this._noise('world', 'lowpass', 300, 1, 0.055, 0.002, 0.08, t);
-    if (a.hasSample('chicken')) {
-      a.playSample('chicken', { gain: 0.45, rate: 0.82 + Math.random() * 0.14, bus: 'voice', at: t + 0.03 });
-    } else {
-      this._cluck(t + 0.04, 700 + Math.random() * 150, 0.05);
-    }
+    this._noise('world', 'lowpass', 300, 1, 0.035, 0.002, 0.08, t);
+    this._cluck(t + 0.04, 640 + Math.random() * 140, 0.03);
+  }
+
+  // Idle muttering while it chases you, on roughly a one-second timer per bird.
+  // Very quiet and low: seven of these at once should read as a nervous flock
+  // somewhere behind you, not as seven alarms.
+  chickenIdle() {
+    const a = this.a; if (!a.ready) return;
+    this._cluck(a.t, 430 + Math.random() * 260, 0.022);
   }
 
   // Contact: the bird goes off like a small bag of flour.
@@ -442,6 +456,24 @@ export class Sfx {
     const { f } = this._noise('world', 'lowpass', 520, 0.9, 0.16, 0.004, 0.34, t + 0.5);
     f.frequency.exponentialRampToValueAtTime(120, t + 0.8);
     this._tone('sine', 64, 'world', 0.11, 0.004, 0.5, t + 0.5);
+  }
+
+  // ── conversation ────────────────────────────────────────────────────────
+
+  // Moving the selection: a single very short, very quiet high tick. Sits above
+  // the coin band and below the reel tick, so it belongs to neither.
+  uiMove() {
+    const a = this.a; if (!a.ready) return;
+    this._tone('sine', 2400, 'ui', 0.022, 0.001, 0.03, a.t);
+  }
+
+  // Choosing one: the same tick with a lower partner under it, so it reads as
+  // a commitment rather than another move.
+  uiPick() {
+    const a = this.a; if (!a.ready) return;
+    const t = a.t;
+    this._tone('sine', 2400, 'ui', 0.03, 0.001, 0.04, t);
+    this._tone('triangle', 900, 'ui', 0.035, 0.003, 0.11, t + 0.012);
   }
 
   // ── weather ─────────────────────────────────────────────────────────────
@@ -612,6 +644,16 @@ export class Sfx {
   playerDeath() {
     const a = this.a; if (!a.ready) return;
     const t = a.t;
+
+    // Recorded, if it is there. It plays over the fifteen seconds of the death
+    // screen, so it is given the whole stage: nothing else is firing.
+    if (a.hasSample('playerDying')) {
+      a.playSample('playerDying', { gain: 0.95, rate: 1, bus: 'voice', at: t });
+      // keep the body-hitting-the-ground thump underneath it
+      const { f: g } = this._noise('world', 'lowpass', 260, 0.9, 0.14, 0.002, 0.4, t);
+      g.frequency.exponentialRampToValueAtTime(60, t + 0.35);
+      return;
+    }
 
     // the glide
     for (const [start, end, gain, delay] of [[280, 44, 0.13, 0], [186, 29, 0.10, 0.05]]) {

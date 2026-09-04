@@ -58,7 +58,7 @@ const PALETTE = {
   cloud:     [0xfdfbf6, 0x241d2a],
   sunColor:  [0xfff0d0, 0x8fa0c8],
   hemiSky:   [0xdff0ff, 0x2a2038],
-  hemiGround:[0x6f7a4a, 0x3a1a18],
+  hemiGround:[0x6f7a4a, 0x50281f],
 };
 
 const _c1 = new THREE.Color();
@@ -179,6 +179,7 @@ export class Sky {
     mesh.receiveShadow = false;
     this.scene.add(mesh);
 
+    mesh.userData.noChatBlock = true;   // clouds are not obstructions
     this.clouds = mesh;
     this.cloudMat = mat;
     this.cloudData = [];
@@ -302,12 +303,14 @@ export class Sky {
     // ── lighting ──
     if (this.sun) {
       mix(PALETTE.sunColor, eased, this.sun.color);
-      this.sun.intensity = this.sunBase * (1 - eased * 0.72) + flick * 2.6 * s;
+      // Dark, but not unplayable — there is a boss and a flock of chickens to
+      // see in this. The mood comes from the colour, not from the exposure.
+      this.sun.intensity = this.sunBase * (1 - eased * 0.6) + flick * 2.6 * s;
     }
     if (this.hemi) {
       mix(PALETTE.hemiSky, eased, this.hemi.color);
       mix(PALETTE.hemiGround, eased, this.hemi.groundColor);
-      this.hemi.intensity = this.hemiBase * (1 - eased * 0.55) + flick * 1.2 * s;
+      this.hemi.intensity = this.hemiBase * (1 - eased * 0.42) + flick * 1.2 * s;
     }
 
     // ── clouds ──

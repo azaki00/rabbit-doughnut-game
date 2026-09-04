@@ -75,6 +75,7 @@ export class Mating {
     this.onBorn = null;      // (typeDef, position) => void
 
     this.group = new THREE.Group();
+    this.group.userData.noChatBlock = true;   // hearts are not obstructions
     scene.add(this.group);
 
     this.heartMat = new THREE.SpriteMaterial({

@@ -34,12 +34,12 @@ Server. Chrome or Edge recommended.
 | ------------------------ | ---------------------------------------------------- |
 | `W` `A` `S` `D`          | Move                                                 |
 | `Shift`                  | Sprint — drains stamina                              |
-| `Ctrl`                   | Crouch — cuts your noise radius by 70%               |
+| `C`                      | Crouch — cuts your noise radius by 70%               |
 | `Space`                  | Jump                                                 |
 | **Hold `LMB` → release** | **Lunge grab**                                       |
 | `1` `2` `3` `4`          | Glove / Gun / Hammer / Toothbrush                    |
 | `Q`                      | Cycle weapon                                         |
-| `E`                      | Interact — mount a horse, buy, open a case, heal     |
+| `E`                      | Interact — talk, mount a horse, buy, open a case     |
 | `B`                      | Buy a healing shake (at the clinic)                  |
 | `H`                      | Drink a carried shake                                |
 | `G`                      | Drop a carrot                                        |
@@ -301,6 +301,60 @@ two layers, so the tiling never becomes obvious at distance.
 
 ---
 
+## The Stranger
+
+The Tenderiser is not sold at the cooking table. It belongs to a man in the far
+corner of the meadow, standing in the mouth of a half-collapsed shack with a
+broken cart beside it and a fire going.
+
+Press `E` and the camera leaves your head, eases in on his face, and stays
+there. You get a **conversation**: numbered replies you pick with `1`-`9`, the
+arrow keys, or the mouse. Ask about his wares, about the rabbits, about
+doughnuts — he has opinions on all three, and directions to the egg.
+
+He will sell you the hammer for 1000c. He does not know what it is:
+
+> "Thank you for paying. But I don't know what's it for. But it does some decent
+> damage."
+
+---
+
+## Weather
+
+The meadow has a sky: a gradient dome and forty-six low-poly clouds drifting
+overhead.
+
+**When the shell cracks, the weather turns.** One value eases from 0 to 1 over
+five seconds and everything hangs off it — the sky goes near-black overhead with
+a bruised red band at the horizon, the fog closes from 190 m to 78, the clouds
+darken and drop and speed up, the sun dims and goes cold, eighteen hundred rain
+streaks start falling around you, and lightning strikes on a timer that tightens
+as the Sovereign gets angrier. It clears again, more slowly, when the thing dies.
+
+None of it is a post-process. It is all real scene state, which is why the
+rabbits, the meat on the ground and your own hands are all standing in it.
+
+---
+
+## Dying
+
+You get **WASTED**, and it is not subtle about where it got that from. The world
+desaturates and blurs, a vignette closes in, the camera collapses to twenty-five
+centimetres off the grass and rolls onto its side, and one enormous serif word
+crawls up out of nothing.
+
+Then it makes you sit there for **fifteen seconds** while a countdown runs and a
+line types itself out, one character at a time:
+
+> `skill issue, dying in this game`
+
+You wake up in a **cell** at the edge of the meadow. Three stone walls and a
+barred front, all of it solid — except the door, which is standing wide open.
+The wait is the punishment; the walk back is the rest of it. You keep everything
+except 20% of your coins.
+
+---
+
 ## Music
 
 The meadow has a track. The Sovereign has a different one, and the switch
@@ -329,6 +383,7 @@ volume slider and the black rabbit's ducking leaves it alone.
 | **[docs/GAME_DESIGN.md](docs/GAME_DESIGN.md)** | The design bible — every system, and why |
 | **[docs/ASSETS.md](docs/ASSETS.md)**           | Every model in `OBJECTS/` and its role   |
 | **[progress.html](progress.html)**             | Live task board with time estimates      |
+| **[RELEASE_NOTES.md](RELEASE_NOTES.md)**       | What shipped in each version             |
 
 ---
 
@@ -336,8 +391,9 @@ volume slider and the black rabbit's ducking leaves it alone.
 
 Playable vertical slice. In: movement and the lunge, rabbit AI and locomotion,
 courtship and mutants, four weapons, meat drops, the horses, the two-phase boss
-fight with its chickens, three skin cases with procedural paints, the carrot
-trader, the clinic, hidden coins, music and settings.
+fight with its chickens and its storm, three skin cases with procedural paints,
+the carrot trader, the clinic, the Stranger and his conversation, the death
+screen and the cell, clouds and weather, hidden coins, music and settings.
 
 **Not yet built:** the baking half — grinder, mixer, fryer minigame, recipes and
 customer orders — plus the goat room, the clothing rack, save/load, the day

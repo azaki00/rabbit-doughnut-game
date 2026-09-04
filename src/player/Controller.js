@@ -56,6 +56,50 @@ export class Controller {
     this.tumblePitch = 0;
     this.tumbleDrop = 0;      // how far the eye is below normal
     this.onTumbleLand = null;
+
+    // ── death camera ──
+    // Separate from the tumble because it never gets back up. The view drops
+    // to just above the grass and rolls onto its side, which is the whole
+    // reason the death screen reads as a body rather than as a menu.
+    this.dying = false;
+    this.dieT = 0;
+    this.dieRoll = 0;
+  }
+
+  // Collapse where you stand. Runs for as long as you are dead.
+  collapse() {
+    this.dying = true;
+    this.dieT = 0;
+    this.dieRoll = (Math.random() < 0.5 ? -1 : 1) * (1.05 + Math.random() * 0.45);
+    this.dieYawDrift = (Math.random() - 0.5) * 0.5;
+    this.tumble = 0;
+  }
+
+  standUp() {
+    this.dying = false;
+    this.dieT = 0;
+    this.tumbleDrop = 0;
+    this.tumbleRoll = 0;
+    this.tumblePitch = 0;
+  }
+
+  // Driven directly while dead — the rest of the controller is not running.
+  updateDeathCam(dt) {
+    if (!this.dying) return;
+    this.dieT += dt;
+
+    // A fast fall with a small settle at the bottom, rather than a linear
+    // slide: you drop, you land, you stop.
+    const t = Math.min(1, this.dieT / 0.85);
+    const fall = 1 - Math.pow(1 - t, 3);
+    const settle = Math.sin(Math.min(1, this.dieT / 1.5) * Math.PI) * 0.05 * (1 - t);
+
+    // eye ends about 25cm off the grass
+    this.tumbleDrop = (this.eyeHeight - 0.25) * fall - settle;
+    this.tumbleRoll = this.dieRoll * fall;
+    // face turned up toward the sky, which is where GTA leaves you
+    this.tumblePitch = -0.42 * fall;
+    this.yaw += this.dieYawDrift * dt * (1 - t);
   }
 
   // Called when something throws you. `seconds` is the whole animation, from
@@ -73,6 +117,7 @@ export class Controller {
   get tumbling() { return this.tumble > 0; }
 
   _updateTumble(dt) {
+    if (this.dying) return;          // the death camera owns the view instead
     if (this.tumble <= 0) return;
     this.tumble = Math.max(0, this.tumble - dt);
 

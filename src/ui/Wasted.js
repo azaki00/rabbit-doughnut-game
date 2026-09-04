@@ -31,6 +31,10 @@ export class Wasted {
     this.taunt = this.el.querySelector('.wTaunt');
     this.num = this.el.querySelector('.wNum');
 
+    // The desaturation is done by filtering the canvas element itself — see
+    // the note in hud.css. backdrop-filter does not composite over WebGL.
+    this.canvas = document.getElementById('view');
+
     this.active = false;
     this.t = 0;
     this.onRelease = null;
@@ -51,11 +55,13 @@ export class Wasted {
     this.el.classList.remove('show');
     void this.el.offsetWidth;
     this.el.classList.add('show');
+    this.canvas?.classList.add('dead');
   }
 
   hide() {
     this.active = false;
     this.el.classList.remove('show');
+    this.canvas?.classList.remove('dead');
   }
 
   update(dt) {
